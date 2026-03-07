@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  status      String       @default("active")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  hypotheses  Hypothesis[]
+  datasets    Dataset[]
+  models      Model[]
+  experiments Experiment[]
+  papers      Paper[]
+}
+
+model Hypothesis {
+  id          String            @id @default(uuid())
+  title       String
+  description String
+  status      String            @default("proposed")
+  confidence  Float?
+  projectId   String
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  experiments Experiment[]
+  papers      PaperHypothesis[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}
+
+model Dataset {
+  id          String              @id @default(uuid())
+  name        String
+  description String?
+  source      String?
+  size        String?
+  format      String?
+  projectId   String
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  experiments ExperimentDataset[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model Model {
+  id           String            @id @default(uuid())
+  name         String
+  description  String?
+  architecture String?
+  framework    String?
+  projectId    String
+  project      Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  experiments  ExperimentModel[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model Experiment {
+  id           String              @id @default(uuid())
+  name         String
+  description  String?
+  status       String              @default("planned")
+  config       String?
+  projectId    String
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  hypothesisId String?
+  hypothesis   Hypothesis?         @relation(fields: [hypothesisId], references: [id])
+  datasets     ExperimentDataset[]
+  models       ExperimentModel[]
+  results      Result[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model ExperimentDataset {
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  datasetId    String
+  dataset      Dataset    @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+
+  @@id([experimentId, datasetId])
+}
+
+model ExperimentModel {
+  experimentId String
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  modelId      String
+  model        Model      @relation(fields: [modelId], references: [id], onDelete: Cascade)
+
+  @@id([experimentId, modelId])
+}
+
+model Result {
+  id           String        @id @default(uuid())
+  name         String
+  metrics      String?
+  notes        String?
+  status       String        @default("preliminary")
+  experimentId String
+  experiment   Experiment    @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  papers       PaperResult[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Paper {
+  id         String            @id @default(uuid())
+  title      String
+  abstract   String?
+  status     String            @default("idea")
+  venue      String?
+  url        String?
+  projectId  String
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  hypotheses PaperHypothesis[]
+  results    PaperResult[]
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+}
+
+model PaperHypothesis {
+  paperId      String
+  paper        Paper      @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  hypothesisId String
+  hypothesis   Hypothesis @relation(fields: [hypothesisId], references: [id], onDelete: Cascade)
+
+  @@id([paperId, hypothesisId])
+}
+
+model PaperResult {
+  paperId  String
+  paper    Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  resultId String
+  result   Result @relation(fields: [resultId], references: [id], onDelete: Cascade)
+
+  @@id([paperId, resultId])
+}
+
+model AgentLog {
+  id        String   @id @default(uuid())
+  action    String
+  input     String?
+  output    String?
+  status    String   @default("success")
+  createdAt DateTime @default(now())
+}
