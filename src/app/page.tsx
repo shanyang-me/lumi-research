@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
 import { ProjectView } from "@/components/ProjectView";
 import { AgentChat } from "@/components/AgentChat";
+import { AgentArena } from "@/components/AgentArena";
 import { CreateDialog } from "@/components/CreateDialog";
 
 export default function Home() {
@@ -50,6 +51,7 @@ export default function Home() {
         {activeView === "project" && activeProjectId && (
           <ProjectView projectId={activeProjectId} onRefresh={refresh} />
         )}
+        {activeView === "arena" && <AgentArena />}
         {activeView === "agent" && <AgentChat />}
       </main>
 

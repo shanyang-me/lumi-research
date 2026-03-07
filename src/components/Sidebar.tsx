@@ -8,9 +8,9 @@ import {
   ChevronRight,
   Bot,
   LayoutDashboard,
+  Swords,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 interface Project {
   id: string;
@@ -63,6 +63,14 @@ export function Sidebar({
         >
           <LayoutDashboard className="w-4 h-4 mr-2" />
           Dashboard
+        </Button>
+        <Button
+          variant={activeView === "arena" ? "secondary" : "ghost"}
+          className="w-full justify-start mb-1"
+          onClick={() => onNavigate("arena")}
+        >
+          <Swords className="w-4 h-4 mr-2" />
+          Agent Arena
         </Button>
         <Button
           variant={activeView === "agent" ? "secondary" : "ghost"}
