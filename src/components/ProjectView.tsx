@@ -18,6 +18,11 @@ import {
   FileText,
   Plus,
   GitBranch,
+  Target,
+  CheckCircle2,
+  Flame,
+  Route,
+  Clock,
 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -125,6 +130,67 @@ export function ProjectView({
           ))}
         </select>
       </div>
+
+      {/* Research Template */}
+      {(project.problem || project.successCriteria || project.motivation || project.approach || project.timeline) && (
+        <div className="mb-6 grid gap-3 md:grid-cols-2">
+          {project.problem && (
+            <Card className="border-violet-200 bg-violet-50/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-violet-700 mb-1.5">
+                  <Target className="w-4 h-4" />
+                  Problem Statement
+                </div>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{project.problem}</p>
+              </CardContent>
+            </Card>
+          )}
+          {project.successCriteria && (
+            <Card className="border-green-200 bg-green-50/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-green-700 mb-1.5">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Success Criteria
+                </div>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{project.successCriteria}</p>
+              </CardContent>
+            </Card>
+          )}
+          {project.motivation && (
+            <Card className="border-orange-200 bg-orange-50/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-orange-700 mb-1.5">
+                  <Flame className="w-4 h-4" />
+                  Motivation
+                </div>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{project.motivation}</p>
+              </CardContent>
+            </Card>
+          )}
+          {project.approach && (
+            <Card className="border-blue-200 bg-blue-50/50">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-blue-700 mb-1.5">
+                  <Route className="w-4 h-4" />
+                  Approach
+                </div>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{project.approach}</p>
+              </CardContent>
+            </Card>
+          )}
+          {project.timeline && (
+            <Card className="border-gray-200 bg-gray-50/50 md:col-span-2">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-1.5">
+                  <Clock className="w-4 h-4" />
+                  Timeline
+                </div>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{project.timeline}</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-6 gap-3 mb-6">

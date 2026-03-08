@@ -25,6 +25,11 @@ export async function POST(req: Request) {
     data: {
       name: body.name,
       description: body.description,
+      problem: body.problem,
+      successCriteria: body.successCriteria,
+      motivation: body.motivation,
+      approach: body.approach,
+      timeline: body.timeline,
       status: body.status || "active",
     },
   });

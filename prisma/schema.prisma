@@ -9,12 +9,17 @@ datasource db {
 }
 
 model Project {
-  id          String       @id @default(uuid())
-  name        String
-  description String?
-  status      String       @default("active")
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id              String       @id @default(uuid())
+  name            String
+  description     String?
+  problem         String?      // What problem are we trying to solve?
+  successCriteria String?      // How do we know we've succeeded?
+  motivation      String?      // Why is this important?
+  approach        String?      // High-level approach / methodology
+  timeline        String?      // Target timeline
+  status          String       @default("active")
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
   hypotheses  Hypothesis[]
   datasets    Dataset[]
   models      Model[]

@@ -6,7 +6,7 @@ import { Dashboard } from "@/components/Dashboard";
 import { ProjectView } from "@/components/ProjectView";
 import { AgentChat } from "@/components/AgentChat";
 import { AgentArena } from "@/components/AgentArena";
-import { CreateDialog } from "@/components/CreateDialog";
+import { NewProjectForm } from "@/components/NewProjectForm";
 
 export default function Home() {
   const [activeView, setActiveView] = useState("dashboard");
@@ -22,13 +22,15 @@ export default function Home() {
     else if (view !== "project") setActiveProjectId(null);
   };
 
-  const handleCreateProject = async (data: Record<string, string | string[]>) => {
-    await fetch("/api/projects", {
+  const handleCreateProject = async (data: Record<string, string>) => {
+    const res = await fetch("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
     });
+    const project = await res.json();
     refresh();
+    navigate("project", project.id);
   };
 
   return (
@@ -55,14 +57,9 @@ export default function Home() {
         {activeView === "agent" && <AgentChat />}
       </main>
 
-      <CreateDialog
+      <NewProjectForm
         open={showNewProject}
         onClose={() => setShowNewProject(false)}
-        title="New Research Project"
-        fields={[
-          { name: "name", label: "Project Name", type: "text", required: true, placeholder: "e.g., World Model Learning" },
-          { name: "description", label: "Description", type: "textarea", placeholder: "Brief description of the research project" },
-        ]}
         onSubmit={handleCreateProject}
       />
     </div>
