@@ -7,18 +7,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import {
   Target,
   CheckCircle2,
   Flame,
   Route,
   Clock,
-  FileText,
   Sparkles,
+  ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 
 interface NewProjectFormProps {
@@ -30,42 +27,47 @@ interface NewProjectFormProps {
 const TEMPLATE_FIELDS = [
   {
     name: "problem",
-    label: "Problem Statement",
+    label: "OBJECTIVE",
     icon: Target,
-    placeholder: "What problem are you trying to solve? What question are you investigating?",
+    color: "#a78bfa",
+    placeholder: "What problem are you trying to solve?",
     hint: "Be specific. A well-defined problem is half the solution.",
     type: "textarea" as const,
   },
   {
     name: "successCriteria",
-    label: "Success Criteria",
+    label: "WIN CONDITION",
     icon: CheckCircle2,
-    placeholder: "How will you know this research succeeded? What metrics or outcomes define success?",
-    hint: "e.g., Achieve >90% accuracy on benchmark X, or demonstrate feasibility of approach Y.",
+    color: "#34d399",
+    placeholder: "How will you know this research succeeded?",
+    hint: "e.g., Achieve >90% accuracy on benchmark X.",
     type: "textarea" as const,
   },
   {
     name: "motivation",
-    label: "Motivation",
+    label: "MOTIVATION",
     icon: Flame,
-    placeholder: "Why is this problem important? What impact would solving it have?",
-    hint: "Connect to the bigger picture - why should anyone care about this work?",
+    color: "#fb923c",
+    placeholder: "Why is this problem important?",
+    hint: "Connect to the bigger picture.",
     type: "textarea" as const,
   },
   {
     name: "approach",
-    label: "Approach / Methodology",
+    label: "STRATEGY",
     icon: Route,
-    placeholder: "What is your high-level approach? What methods or techniques will you use?",
-    hint: "Outline your strategy - you can refine it as you create hypotheses and experiments.",
+    color: "#60a5fa",
+    placeholder: "What is your high-level approach?",
+    hint: "Outline your strategy.",
     type: "textarea" as const,
   },
   {
     name: "timeline",
-    label: "Timeline",
+    label: "TIMELINE",
     icon: Clock,
-    placeholder: "e.g., 3 months: Month 1 - data collection, Month 2 - experiments, Month 3 - paper",
-    hint: "A rough timeline helps track progress. Don't worry about being exact.",
+    color: "#6b7280",
+    placeholder: "e.g., 3 months: Month 1 - data, Month 2 - experiments",
+    hint: "A rough timeline helps track progress.",
     type: "text" as const,
   },
 ];
@@ -73,7 +75,7 @@ const TEMPLATE_FIELDS = [
 export function NewProjectForm({ open, onClose, onSubmit }: NewProjectFormProps) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState(0); // 0 = basics, 1 = template
+  const [step, setStep] = useState(0);
 
   const set = (name: string, value: string) => {
     setValues((prev) => ({ ...prev, [name]: value }));
@@ -95,116 +97,140 @@ export function NewProjectForm({ open, onClose, onSubmit }: NewProjectFormProps)
 
   return (
     <Dialog open={open} onOpenChange={() => { onClose(); setStep(0); }}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-[#111827] border-2 border-[#374151] shadow-[4px_4px_0_#0a0a1a]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Sparkles className="w-5 h-5 text-violet-500" />
-            New Research Project
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[#a78bfa]" />
+            <span className="font-pixel text-[10px] text-[#a78bfa] tracking-wider">
+              NEW QUEST
+            </span>
           </DialogTitle>
         </DialogHeader>
 
         {/* Step indicator */}
-        <div className="flex items-center gap-2 mb-2">
-          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-            step === 0 ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-500"
+        <div className="flex items-center gap-2 mb-3">
+          <div className={`flex items-center gap-1.5 px-2 py-1 text-[8px] font-pixel tracking-wider ${
+            step === 0
+              ? "bg-[#7c3aed]/20 text-[#a78bfa] border border-[#7c3aed]"
+              : "bg-[#1f2937] text-[#4b5563] border border-[#374151]"
           }`}>
-            <FileText className="w-3 h-3" />
-            Basics
+            1. BASICS
           </div>
-          <div className="w-6 h-[1px] bg-gray-200" />
-          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-            step === 1 ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-500"
+          <ChevronRight className="w-3 h-3 text-[#374151]" />
+          <div className={`flex items-center gap-1.5 px-2 py-1 text-[8px] font-pixel tracking-wider ${
+            step === 1
+              ? "bg-[#7c3aed]/20 text-[#a78bfa] border border-[#7c3aed]"
+              : "bg-[#1f2937] text-[#4b5563] border border-[#374151]"
           }`}>
-            <Target className="w-3 h-3" />
-            Research Template
+            2. TEMPLATE
           </div>
         </div>
 
         {step === 0 && (
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Project Name *</label>
-              <Input
+              <label className="font-pixel text-[7px] text-[#6b7280] mb-1.5 block tracking-wider">
+                QUEST NAME *
+              </label>
+              <input
                 value={values.name || ""}
                 onChange={(e) => set("name", e.target.value)}
                 placeholder="e.g., Physics World Models for Robotic Manipulation"
-                className="text-base"
+                className="w-full bg-[#0a0a1a] border-2 border-[#374151] text-[#e5e7eb] text-sm p-2.5 focus:border-[#a78bfa] focus:outline-none placeholder:text-[#374151]"
                 autoFocus
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Brief Description</label>
-              <Textarea
+              <label className="font-pixel text-[7px] text-[#6b7280] mb-1.5 block tracking-wider">
+                DESCRIPTION
+              </label>
+              <textarea
                 value={values.description || ""}
                 onChange={(e) => set("description", e.target.value)}
                 placeholder="One-paragraph summary of the research project"
                 rows={3}
+                className="w-full bg-[#0a0a1a] border-2 border-[#374151] text-[#e5e7eb] text-xs p-2.5 focus:border-[#a78bfa] focus:outline-none placeholder:text-[#374151] resize-none"
               />
             </div>
 
-            <Separator />
+            <div className="pixel-divider" />
 
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <div className="flex justify-between pt-2">
+              <button
+                onClick={onClose}
+                className="pixel-btn bg-[#1f2937] px-4 py-2 text-[10px] text-[#9ca3af]"
+              >
+                CANCEL
+              </button>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
+                <button
                   onClick={handleSubmit}
                   disabled={!canProceed || loading}
+                  className="pixel-btn bg-[#1f2937] px-3 py-2 text-[10px] text-[#9ca3af] disabled:opacity-50"
                 >
-                  Skip Template & Create
-                </Button>
-                <Button
+                  QUICK CREATE
+                </button>
+                <button
                   onClick={() => setStep(1)}
                   disabled={!canProceed}
+                  className="pixel-btn bg-[#7c3aed] px-3 py-2 text-[10px] text-white border-[#a78bfa] disabled:opacity-50 flex items-center gap-1"
                 >
-                  Fill Research Template
-                </Button>
+                  TEMPLATE
+                  <ChevronRight className="w-3 h-3" />
+                </button>
               </div>
             </div>
           </div>
         )}
 
         {step === 1 && (
-          <div className="space-y-5">
-            <p className="text-sm text-muted-foreground">
-              Define the research scope. These fields help you stay focused and make it easier
-              to track progress. All fields are optional.
+          <div className="space-y-4">
+            <p className="text-[10px] text-[#6b7280]">
+              Define the research scope. All fields are optional.
             </p>
 
             {TEMPLATE_FIELDS.map((field) => (
-              <div key={field.name} className="group">
-                <label className="text-sm font-medium mb-1.5 flex items-center gap-2">
-                  <field.icon className="w-4 h-4 text-violet-500" />
+              <div key={field.name}>
+                <label className="flex items-center gap-1.5 font-pixel text-[7px] mb-1.5 tracking-wider" style={{ color: field.color }}>
+                  <field.icon className="w-3 h-3" />
                   {field.label}
                 </label>
                 {field.type === "textarea" ? (
-                  <Textarea
+                  <textarea
                     value={values[field.name] || ""}
                     onChange={(e) => set(field.name, e.target.value)}
                     placeholder={field.placeholder}
-                    rows={3}
+                    rows={2}
+                    className="w-full bg-[#0a0a1a] border-2 border-[#374151] text-[#e5e7eb] text-xs p-2 focus:border-[#a78bfa] focus:outline-none placeholder:text-[#374151] resize-none"
                   />
                 ) : (
-                  <Input
+                  <input
                     value={values[field.name] || ""}
                     onChange={(e) => set(field.name, e.target.value)}
                     placeholder={field.placeholder}
+                    className="w-full bg-[#0a0a1a] border-2 border-[#374151] text-[#e5e7eb] text-xs p-2 focus:border-[#a78bfa] focus:outline-none placeholder:text-[#374151]"
                   />
                 )}
-                <p className="text-xs text-muted-foreground mt-1 opacity-0 group-focus-within:opacity-100 transition-opacity">
-                  {field.hint}
-                </p>
               </div>
             ))}
 
-            <Separator />
+            <div className="pixel-divider" />
 
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setStep(0)}>Back</Button>
-              <Button onClick={handleSubmit} disabled={loading}>
-                {loading ? "Creating..." : "Create Project"}
-              </Button>
+            <div className="flex justify-between pt-2">
+              <button
+                onClick={() => setStep(0)}
+                className="pixel-btn bg-[#1f2937] px-3 py-2 text-[10px] text-[#9ca3af] flex items-center gap-1"
+              >
+                <ChevronLeft className="w-3 h-3" />
+                BACK
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="pixel-btn bg-[#7c3aed] px-4 py-2 text-[10px] text-white border-[#a78bfa] disabled:opacity-50"
+              >
+                {loading ? "CREATING..." : "CREATE QUEST"}
+              </button>
             </div>
           </div>
         )}

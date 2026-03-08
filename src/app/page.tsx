@@ -34,7 +34,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-[#0a0a1a]">
       <Sidebar
         activeView={activeView}
         activeProjectId={activeProjectId}
@@ -43,7 +43,7 @@ export default function Home() {
         refreshKey={refreshKey}
       />
 
-      <main className="flex-1 overflow-auto bg-white">
+      <main className="flex-1 overflow-auto bg-[#0a0a1a]">
         {activeView === "dashboard" && (
           <Dashboard
             onSelectProject={(id) => navigate("project", id)}

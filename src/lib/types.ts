@@ -12,29 +12,29 @@ export type PaperStatus = (typeof PAPER_STATUSES)[number];
 
 export const STATUS_COLORS: Record<string, string> = {
   // Project
-  active: "bg-green-100 text-green-800",
-  paused: "bg-yellow-100 text-yellow-800",
-  completed: "bg-blue-100 text-blue-800",
-  archived: "bg-gray-100 text-gray-800",
+  active: "bg-green-900/60 text-green-400 border border-green-700",
+  paused: "bg-yellow-900/60 text-yellow-400 border border-yellow-700",
+  completed: "bg-blue-900/60 text-blue-400 border border-blue-700",
+  archived: "bg-gray-800/60 text-gray-400 border border-gray-600",
   // Hypothesis
-  proposed: "bg-purple-100 text-purple-800",
-  testing: "bg-orange-100 text-orange-800",
-  supported: "bg-green-100 text-green-800",
-  refuted: "bg-red-100 text-red-800",
-  revised: "bg-indigo-100 text-indigo-800",
+  proposed: "bg-purple-900/60 text-purple-400 border border-purple-700",
+  testing: "bg-orange-900/60 text-orange-400 border border-orange-700",
+  supported: "bg-green-900/60 text-green-400 border border-green-700",
+  refuted: "bg-red-900/60 text-red-400 border border-red-700",
+  revised: "bg-indigo-900/60 text-indigo-400 border border-indigo-700",
   // Experiment
-  planned: "bg-slate-100 text-slate-800",
-  running: "bg-amber-100 text-amber-800",
-  failed: "bg-red-100 text-red-800",
+  planned: "bg-slate-800/60 text-slate-400 border border-slate-600",
+  running: "bg-amber-900/60 text-amber-400 border border-amber-700",
+  failed: "bg-red-900/60 text-red-400 border border-red-700",
   // Result
-  preliminary: "bg-yellow-100 text-yellow-800",
-  validated: "bg-emerald-100 text-emerald-800",
-  published: "bg-blue-100 text-blue-800",
+  preliminary: "bg-yellow-900/60 text-yellow-400 border border-yellow-700",
+  validated: "bg-emerald-900/60 text-emerald-400 border border-emerald-700",
+  published: "bg-blue-900/60 text-blue-400 border border-blue-700",
   // Paper
-  idea: "bg-violet-100 text-violet-800",
-  drafting: "bg-orange-100 text-orange-800",
-  review: "bg-cyan-100 text-cyan-800",
-  submitted: "bg-teal-100 text-teal-800",
+  idea: "bg-violet-900/60 text-violet-400 border border-violet-700",
+  drafting: "bg-orange-900/60 text-orange-400 border border-orange-700",
+  review: "bg-cyan-900/60 text-cyan-400 border border-cyan-700",
+  submitted: "bg-teal-900/60 text-teal-400 border border-teal-700",
 };
 
 export const PIPELINE_STAGES = [

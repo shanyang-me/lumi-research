@@ -25,6 +25,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         },
         orderBy: { updatedAt: "desc" },
       },
+      pipelineTasks: { orderBy: [{ stage: "asc" }, { order: "asc" }] },
     },
   });
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });

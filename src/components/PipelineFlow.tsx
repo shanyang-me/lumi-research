@@ -36,21 +36,39 @@ interface ProjectData {
 }
 
 const STATUS_NODE_COLORS: Record<string, string> = {
-  proposed: "#e9d5ff",
-  testing: "#fed7aa",
-  supported: "#bbf7d0",
-  refuted: "#fecaca",
-  planned: "#e2e8f0",
-  running: "#fef08a",
-  completed: "#bbf7d0",
-  failed: "#fecaca",
-  preliminary: "#fef9c3",
-  validated: "#a7f3d0",
-  published: "#bfdbfe",
-  idea: "#ede9fe",
-  drafting: "#fed7aa",
-  review: "#cffafe",
-  submitted: "#99f6e4",
+  proposed: "#4c1d95",
+  testing: "#78350f",
+  supported: "#064e3b",
+  refuted: "#7f1d1d",
+  planned: "#1e293b",
+  running: "#713f12",
+  completed: "#064e3b",
+  failed: "#7f1d1d",
+  preliminary: "#713f12",
+  validated: "#064e3b",
+  published: "#1e3a5f",
+  idea: "#3b0764",
+  drafting: "#78350f",
+  review: "#164e63",
+  submitted: "#134e4a",
+};
+
+const STATUS_BORDER_COLORS: Record<string, string> = {
+  proposed: "#7c3aed",
+  testing: "#f59e0b",
+  supported: "#10b981",
+  refuted: "#ef4444",
+  planned: "#475569",
+  running: "#f59e0b",
+  completed: "#10b981",
+  failed: "#ef4444",
+  preliminary: "#eab308",
+  validated: "#10b981",
+  published: "#3b82f6",
+  idea: "#8b5cf6",
+  drafting: "#f59e0b",
+  review: "#06b6d4",
+  submitted: "#14b8a6",
 };
 
 export function PipelineFlow({ project }: { project: ProjectData }) {
@@ -73,7 +91,7 @@ export function PipelineFlow({ project }: { project: ProjectData }) {
       { items: project.papers, type: "paper", label: (i: { title?: string; name?: string }) => i.title || "" },
     ];
 
-    const colLabels = ["Hypotheses", "Datasets", "Models", "Experiments", "Results", "Papers"];
+    const colLabels = ["IDEAS", "DATA", "MODELS", "EXPS", "RESULTS", "PAPERS"];
 
     colLabels.forEach((label, colIdx) => {
       nodes.push({
@@ -82,13 +100,15 @@ export function PipelineFlow({ project }: { project: ProjectData }) {
         data: { label },
         type: "default",
         style: {
-          background: "#f1f5f9",
-          border: "1px solid #cbd5e1",
-          borderRadius: 8,
-          fontWeight: 600,
-          fontSize: 12,
+          background: "#0f0f23",
+          border: "2px solid #374151",
+          fontWeight: 700,
+          fontSize: 9,
+          fontFamily: "var(--font-pixel), monospace",
+          letterSpacing: "0.1em",
           width: 180,
           textAlign: "center" as const,
+          color: "#a78bfa",
         },
         draggable: false,
         selectable: false,
@@ -109,12 +129,13 @@ export function PipelineFlow({ project }: { project: ProjectData }) {
           sourcePosition: Position.Right,
           targetPosition: Position.Left,
           style: {
-            background: STATUS_NODE_COLORS[item.status] || "#f8fafc",
-            border: "1px solid #d1d5db",
-            borderRadius: 8,
-            fontSize: 11,
+            background: STATUS_NODE_COLORS[item.status] || "#111827",
+            border: `2px solid ${STATUS_BORDER_COLORS[item.status] || "#374151"}`,
+            fontSize: 10,
             width: 180,
             padding: "6px 10px",
+            color: "#e5e7eb",
+            fontFamily: "var(--font-geist-mono), monospace",
           },
         });
       });
@@ -128,10 +149,9 @@ export function PipelineFlow({ project }: { project: ProjectData }) {
           source: `hypothesis-${exp.hypothesisId}`,
           target: `experiment-${exp.id}`,
           animated: exp.status === "running",
-          style: { stroke: "#6366f1" },
+          style: { stroke: "#7c3aed" },
         });
       }
-      // dataset -> experiment
       exp.datasets.forEach((d) => {
         edges.push({
           id: `d-e-${d.dataset.id}-${exp.id}`,
@@ -140,7 +160,6 @@ export function PipelineFlow({ project }: { project: ProjectData }) {
           style: { stroke: "#3b82f6" },
         });
       });
-      // model -> experiment
       exp.models.forEach((m) => {
         edges.push({
           id: `m-e-${m.model.id}-${exp.id}`,
@@ -149,7 +168,6 @@ export function PipelineFlow({ project }: { project: ProjectData }) {
           style: { stroke: "#ec4899" },
         });
       });
-      // experiment -> results
       exp.results.forEach((r) => {
         edges.push({
           id: `e-r-${exp.id}-${r.id}`,
@@ -160,7 +178,6 @@ export function PipelineFlow({ project }: { project: ProjectData }) {
       });
     });
 
-    // results/hypotheses -> papers
     project.papers.forEach((paper) => {
       paper.hypotheses?.forEach((h) => {
         edges.push({
@@ -190,14 +207,16 @@ export function PipelineFlow({ project }: { project: ProjectData }) {
 
   if (initialNodes.length <= 6) {
     return (
-      <div className="h-[400px] flex items-center justify-center text-muted-foreground border rounded-lg">
-        Add hypotheses, datasets, models, and experiments to see the pipeline flow.
+      <div className="h-[400px] flex items-center justify-center pixel-border bg-[#111827]">
+        <p className="font-pixel text-[8px] text-[#4b5563]">
+          ADD ITEMS TO SEE THE QUEST MAP
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="h-[500px] border rounded-lg overflow-hidden">
+    <div className="h-[500px] pixel-border overflow-hidden bg-[#0a0a1a]">
       <ReactFlow
         nodes={nodes}
         edges={edgesState}
@@ -206,8 +225,9 @@ export function PipelineFlow({ project }: { project: ProjectData }) {
         onInit={onInit}
         fitView
         attributionPosition="bottom-left"
+        style={{ background: "#0a0a1a" }}
       >
-        <Background />
+        <Background color="#1f2937" gap={16} size={1} />
         <Controls />
       </ReactFlow>
     </div>

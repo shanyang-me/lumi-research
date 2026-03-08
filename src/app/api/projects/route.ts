@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { DEFAULT_TASKS } from "@/lib/pipeline";
 
 export async function GET() {
   const projects = await prisma.project.findMany({
@@ -11,6 +12,7 @@ export async function GET() {
           models: true,
           experiments: true,
           papers: true,
+          pipelineTasks: true,
         },
       },
     },
@@ -33,5 +35,14 @@ export async function POST(req: Request) {
       status: body.status || "active",
     },
   });
+
+  // Auto-initialize pipeline tasks
+  await prisma.pipelineTask.createMany({
+    data: DEFAULT_TASKS.map((t) => ({
+      ...t,
+      projectId: project.id,
+    })),
+  });
+
   return NextResponse.json(project, { status: 201 });
 }

@@ -18,13 +18,51 @@ model Project {
   approach        String?      // High-level approach / methodology
   timeline        String?      // Target timeline
   status          String       @default("active")
+  currentStage    String       @default("define")
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
-  hypotheses  Hypothesis[]
-  datasets    Dataset[]
-  models      Model[]
-  experiments Experiment[]
-  papers      Paper[]
+  hypotheses    Hypothesis[]
+  datasets      Dataset[]
+  models        Model[]
+  experiments   Experiment[]
+  papers        Paper[]
+  pipelineTasks PipelineTask[]
+  boardNotes    BoardNote[]
+  customAgents  CustomAgent[]
+}
+
+model CustomAgent {
+  id           String   @id @default(uuid())
+  name         String
+  title        String
+  description  String
+  color        String   @default("#8b5cf6")
+  systemPrompt String
+  stage        String?
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+model PipelineTask {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  stage       String   // define, survey, plan, hypothesize, design, implement, data_prep, execute
+  status      String   @default("todo") // todo, active, done, blocked
+  type        String   @default("manual") // manual, agent
+  agentRole   String?  // scout, theorist, architect, coder, datasmith, commander
+  output      String?  // JSON output from agent or manual notes
+  order       Int      @default(0)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, stage])
 }
 
 model Hypothesis {
@@ -147,6 +185,20 @@ model PaperResult {
   result   Result @relation(fields: [resultId], references: [id], onDelete: Cascade)
 
   @@id([paperId, resultId])
+}
+
+model BoardNote {
+  id        String   @id @default(uuid())
+  title     String
+  content   String
+  category  String   @default("general") // machine, dataset, cloud, credentials, general
+  pinned    Boolean  @default(false)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, category])
 }
 
 model AgentLog {
