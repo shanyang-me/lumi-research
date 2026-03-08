@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PixelWorld } from "./PixelWorld";
 import {
   Search,
   FlaskConical,
@@ -527,8 +528,16 @@ export function AgentArena() {
         </div>
       </div>
 
+      {/* Pixel World */}
+      <div className="px-4 pt-4">
+        <PixelWorld
+          scoutStatus={{ id: "scout", state: researchState.status, message: researchState.message, progress: researchState.progress }}
+          forgeStatus={{ id: "forge", state: experimentState.status, message: experimentState.message, progress: experimentState.progress }}
+        />
+      </div>
+
       {/* Agent panels */}
-      <div className="p-4 flex gap-4 h-[calc(100%-52px)]">
+      <div className="p-4 flex gap-4 flex-1 min-h-0">
         <AgentPanel
           type="research"
           state={researchState}
@@ -540,7 +549,7 @@ export function AgentArena() {
         />
 
         {/* Center connector */}
-        <div className="flex flex-col items-center justify-center gap-2 px-2">
+        <div className="flex flex-col items-center justify-center gap-2 px-1">
           <div className="w-[1px] flex-1 bg-gradient-to-b from-transparent via-white/10 to-transparent" />
           <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all duration-500 ${
             anyRunning
@@ -549,7 +558,7 @@ export function AgentArena() {
           }`}>
             <Zap className={`w-4 h-4 ${anyRunning ? "text-violet-400" : "text-gray-600"}`} />
           </div>
-          <div className="text-[9px] text-gray-600 uppercase tracking-widest writing-mode-vertical"
+          <div className="text-[9px] text-gray-600 uppercase tracking-widest"
             style={{ writingMode: "vertical-rl" }}>
             SYNC
           </div>
