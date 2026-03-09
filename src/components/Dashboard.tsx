@@ -15,6 +15,7 @@ import {
   Sword,
   Heart,
   Gem,
+  Plus,
 } from "lucide-react";
 
 interface ProjectWithCounts {
@@ -50,9 +51,11 @@ const STATUS_ICON: Record<string, typeof Star> = {
 
 export function Dashboard({
   onSelectProject,
+  onNewProject,
   refreshKey,
 }: {
   onSelectProject: (id: string) => void;
+  onNewProject?: () => void;
   refreshKey: number;
 }) {
   const [projects, setProjects] = useState<ProjectWithCounts[]>([]);
@@ -139,6 +142,13 @@ export function Dashboard({
           QUEST BOARD
         </h3>
         <div className="flex-1 pixel-divider" />
+        <button
+          onClick={onNewProject}
+          className="flex items-center gap-1.5 px-3 py-1.5 border-2 border-dashed border-[#f59e0b] text-[#f59e0b] hover:bg-[#f59e0b15] transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span className="font-pixel text-[7px] tracking-wider">NEW QUEST</span>
+        </button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -217,9 +227,16 @@ export function Dashboard({
           <p className="font-pixel text-[9px] text-[#6b7280] mb-2">
             NO QUESTS AVAILABLE
           </p>
-          <p className="text-xs text-[#4b5563]">
+          <p className="text-xs text-[#4b5563] mb-4">
             Begin your research journey by creating a new quest.
           </p>
+          <button
+            onClick={onNewProject}
+            className="inline-flex items-center gap-1.5 px-4 py-2 border-2 border-[#f59e0b] text-[#f59e0b] hover:bg-[#f59e0b15] transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="font-pixel text-[8px] tracking-wider">CREATE QUEST</span>
+          </button>
         </div>
       )}
     </div>

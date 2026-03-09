@@ -6,7 +6,7 @@ export interface AgentStatus {
   id: string;
   name: string;
   color: string;
-  state: "idle" | "working" | "done" | "error";
+  state: "idle" | "working" | "done" | "error" | "meeting";
   message: string;
 }
 
@@ -681,9 +681,29 @@ export function PixelWorld({ agents, onSceneClick }: PixelWorldProps) {
       "Refueling...",
     ];
 
+    // Meeting table seats (around the table at 360, 400)
+    const MEETING_SEATS = [
+      { x: 350, y: 388 },  // left
+      { x: 438, y: 388 },  // right
+      { x: 374, y: 372 },  // top left
+      { x: 412, y: 372 },  // top right
+      { x: 374, y: 440 },  // bottom left
+      { x: 412, y: 440 },  // bottom right
+      { x: 350, y: 415 },  // far left
+      { x: 438, y: 415 },  // far right
+    ];
+
+    // Count meeting agents for seat assignment
+    let meetingSeatIdx = 0;
+
     currentAgents.forEach((agent, i) => {
       let targetX: number, targetY: number;
-      if (agent.state === "working" && i < DESKS.length) {
+      if (agent.state === "meeting") {
+        const seat = MEETING_SEATS[meetingSeatIdx % MEETING_SEATS.length];
+        targetX = seat.x;
+        targetY = seat.y;
+        meetingSeatIdx++;
+      } else if (agent.state === "working" && i < DESKS.length) {
         targetX = DESKS[i].x + 32;
         targetY = DESKS[i].y + 36;
       } else {
@@ -703,7 +723,7 @@ export function PixelWorld({ agents, onSceneClick }: PixelWorldProps) {
       pos.x += (targetX - pos.x) * 0.04;
       pos.y += (targetY - pos.y) * 0.04;
 
-      if (agent.state === "working") {
+      if (agent.state === "working" || agent.state === "meeting") {
         drawAgent(ctx, pos.x, pos.y, frame, agent.color, true);
       } else {
         drawAgentWithCoffee(ctx, pos.x, pos.y, frame, agent.color);
@@ -715,6 +735,8 @@ export function PixelWorld({ agents, onSceneClick }: PixelWorldProps) {
       if (phase < show) {
         const txt = agent.state === "working"
           ? (agent.message || "Working...")
+          : agent.state === "meeting"
+          ? (agent.message || "In meeting...")
           : IDLE_CHATTER[(Math.floor(frame / cycle) + i) % IDLE_CHATTER.length];
         drawSpeechBubble(ctx, pos.x, pos.y, txt, agent.color, frame);
       }

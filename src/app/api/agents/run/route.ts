@@ -116,6 +116,12 @@ function runClaude(prompt: string): Promise<string> {
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const finish = (fn: typeof resolve | typeof reject, val: string | Error) => {
+      if (settled) return;
+      settled = true;
+      (fn as (v: string | Error) => void)(val);
+    };
 
     child.stdout.on("data", (data: Buffer) => {
       stdout += data.toString();
@@ -126,22 +132,23 @@ function runClaude(prompt: string): Promise<string> {
     });
 
     child.on("close", (code: number | null) => {
+      clearTimeout(timer);
       if (code === 0) {
-        resolve(stdout.trim());
+        finish(resolve, stdout.trim());
       } else {
-        reject(new Error(stderr || `claude exited with code ${code}`));
+        finish(reject, new Error(stderr || `claude exited with code ${code}`));
       }
     });
 
     child.on("error", (err: Error) => {
-      reject(err);
+      finish(reject, err);
     });
 
-    // Timeout after 90 seconds
-    setTimeout(() => {
-      child.kill();
-      reject(new Error("Agent timed out after 90s"));
-    }, 90000);
+    // Timeout after 60 seconds
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(reject, new Error("Agent timed out after 60s"));
+    }, 60000);
   });
 }
 

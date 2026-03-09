@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { STATUS_COLORS } from "@/lib/types";
 import { QuestMap } from "./QuestMap";
@@ -8,6 +8,8 @@ import { EntityTable } from "./EntityTable";
 import { CreateDialog } from "./CreateDialog";
 import { Blackboard } from "./Blackboard";
 import { MeetingRoom } from "./MeetingRoom";
+import { ConsolePanel } from "./ConsolePanel";
+import type { LogEntry } from "./ConsolePanel";
 import { PixelWorld } from "./PixelWorld";
 import type { AgentStatus } from "./PixelWorld";
 import { AGENT_ROLES, PIPELINE_STAGES } from "@/lib/pipeline";
@@ -32,6 +34,7 @@ import {
   Trash2,
   ChevronDown,
   Users,
+  Terminal,
 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -63,9 +66,11 @@ const AGENT_COLORS = [
 export function ProjectView({
   projectId,
   onRefresh,
+  onDelete,
 }: {
   projectId: string;
   onRefresh: () => void;
+  onDelete?: () => void;
 }) {
   const [project, setProject] = useState<ProjectData>(null);
   const [createType, setCreateType] = useState<string | null>(null);
@@ -77,6 +82,22 @@ export function ProjectView({
   const [tasks, setTasks] = useState<PipelineTask[]>([]);
   const [runningAgents, setRunningAgents] = useState<Set<string>>(new Set());
   const [agentMessages, setAgentMessages] = useState<Record<string, string>>({});
+  const [meetingAgents, setMeetingAgents] = useState<Set<string>>(new Set());
+
+  // Console
+  const [consoleLogs, setConsoleLogs] = useState<LogEntry[]>([]);
+  const [showConsole, setShowConsole] = useState(true);
+  const [consoleCollapsed, setConsoleCollapsed] = useState(false);
+  const logIdRef = useRef(0);
+
+  const addLog = useCallback((level: LogEntry["level"], source: string, message: string) => {
+    const id = ++logIdRef.current;
+    setConsoleLogs((prev) => {
+      const next = [...prev, { id, timestamp: new Date(), level, source, message }];
+      // Keep last 500 lines
+      return next.length > 500 ? next.slice(-500) : next;
+    });
+  }, []);
 
   // Custom agents
   const [customAgents, setCustomAgents] = useState<CustomAgentData[]>([]);
@@ -112,9 +133,15 @@ export function ProjectView({
 
   useEffect(() => {
     loadTasks();
-    const interval = setInterval(loadTasks, 5000);
-    return () => clearInterval(interval);
   }, [loadTasks]);
+
+  // Initial console log
+  useEffect(() => {
+    addLog("system", "init", "Lumi Research Manager v1.0 initialized");
+    addLog("info", "init", `Project ${projectId.slice(0, 8)}... loaded`);
+    addLog("debug", "init", "Console ready — all agent activity will be logged here");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId]);
 
   // Build merged agent roles (built-in + custom)
   const allAgentRoles: Record<string, { name: string; title: string; description: string; color: string; stage: string | null; custom?: boolean }> = {};
@@ -130,12 +157,15 @@ export function ProjectView({
     .filter(([key]) => key !== "commander" && key !== "documenter")
     .map(([key, role]) => {
       const isRunning = runningAgents.has(key);
+      const inMeeting = meetingAgents.has(key);
 
       let state: AgentStatus["state"] = "idle";
-      if (isRunning) state = "working";
+      if (inMeeting) state = "meeting";
+      else if (isRunning) state = "working";
 
       let message = "On break";
-      if (isRunning) message = agentMessages[key] || "Working...";
+      if (inMeeting) message = agentMessages[key] || "In meeting...";
+      else if (isRunning) message = agentMessages[key] || "Working...";
 
       return { id: key, name: role.name, color: role.color, state, message };
     });
@@ -163,19 +193,22 @@ export function ProjectView({
   const runDocumenter = async () => {
     setRunningAgents((prev) => new Set(prev).add("documenter"));
     setAgentMessages((prev) => ({ ...prev, documenter: "Syncing to Notion..." }));
+    addLog("system", "Documenter", "Starting Notion sync...");
+    addLog("debug", "api", "POST /api/projects/.../doc-sync");
     try {
       const res = await fetch(`/api/projects/${projectId}/doc-sync`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
         setAgentMessages((prev) => ({ ...prev, documenter: data.error || "Sync failed" }));
+        addLog("error", "Documenter", data.error || "Sync failed");
       } else {
-        setAgentMessages((prev) => ({
-          ...prev,
-          documenter: `${data.action === "created" ? "Created" : "Updated"} Notion page`,
-        }));
+        const msg = `${data.action === "created" ? "Created" : "Updated"} Notion page`;
+        setAgentMessages((prev) => ({ ...prev, documenter: msg }));
+        addLog("system", "Documenter", `${msg} → ${data.url || "done"}`);
       }
     } catch (err) {
       setAgentMessages((prev) => ({ ...prev, documenter: `Error: ${err}` }));
+      addLog("error", "Documenter", `${err}`);
     } finally {
       setRunningAgents((prev) => {
         const next = new Set(prev);
@@ -188,8 +221,11 @@ export function ProjectView({
   const runAgent = async (role: string) => {
     if (role === "documenter") return runDocumenter();
 
+    const agentName = allAgentRoles[role]?.name || role;
     setRunningAgents((prev) => new Set(prev).add(role));
     setAgentMessages((prev) => ({ ...prev, [role]: "Starting..." }));
+    addLog("system", "dispatch", `Spawning ${agentName} agent...`);
+    addLog("debug", "cli", `claude -p "<${agentName} system prompt + project context>"`);
 
     const agentInfo = allAgentRoles[role];
 
@@ -206,6 +242,7 @@ export function ProjectView({
       });
 
       if (!response.ok || !response.body) throw new Error("Failed");
+      addLog("info", agentName, "SSE stream connected, waiting for response...");
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -225,9 +262,15 @@ export function ProjectView({
             try {
               const data = JSON.parse(line.slice(6));
               if (eventType === "log") {
-                const short = data.text.replace(/^> /, "").slice(0, 40);
+                const text = data.text.replace(/^> /, "");
+                const short = text.slice(0, 40);
                 setAgentMessages((prev) => ({ ...prev, [role]: short }));
-              } else if (eventType === "task_update" || eventType === "complete") {
+                addLog("agent", agentName, text);
+              } else if (eventType === "task_update") {
+                addLog("info", agentName, `Task ${data.taskId} → ${data.status}`);
+                loadTasks();
+              } else if (eventType === "complete") {
+                addLog("system", agentName, "Agent run complete, processing output...");
                 loadTasks();
               }
             } catch { /* skip */ }
@@ -237,6 +280,7 @@ export function ProjectView({
       }
     } catch (err) {
       setAgentMessages((prev) => ({ ...prev, [role]: `Error: ${err}` }));
+      addLog("error", agentName, `${err}`);
     } finally {
       setRunningAgents((prev) => {
         const next = new Set(prev);
@@ -244,6 +288,7 @@ export function ProjectView({
         return next;
       });
       setAgentMessages((prev) => ({ ...prev, [role]: "Done" }));
+      addLog("system", agentName, "Agent finished");
       loadTasks();
     }
   };
@@ -252,8 +297,10 @@ export function ProjectView({
   const handleSceneClick = (item: string) => {
     if (item === "whiteboard") {
       setShowBoard(true);
+      addLog("info", "scene", "Opened blackboard");
     } else if (item === "meeting_table") {
       setShowMeeting(true);
+      addLog("info", "scene", "Opened meeting room");
     }
   };
 
@@ -376,6 +423,17 @@ export function ProjectView({
             <option key={s} value={s}>{s.toUpperCase()}</option>
           ))}
         </select>
+        <button
+          onClick={async () => {
+            if (!confirm(`Delete project "${project.name}"? This cannot be undone.`)) return;
+            await fetch(`/api/projects/${projectId}`, { method: "DELETE" });
+            onDelete?.();
+          }}
+          className="p-1.5 border border-[#374151] text-[#4b5563] hover:border-[#ef4444] hover:text-[#ef4444] transition-colors"
+          title="Delete project"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Main content */}
@@ -406,124 +464,149 @@ export function ProjectView({
                   <Coffee className="w-3 h-3" /> {idleCount} on break
                 </span>
               )}
-            </div>
-          </div>
-
-          {/* Pixel World */}
-          <div className="px-4 pt-4">
-            <PixelWorld agents={agentStatuses} onSceneClick={handleSceneClick} />
-            <div className="text-center mt-1">
-              <span className="text-[8px] text-[#4b5563]">
-                Click the blackboard for notes | Click the meeting table for team meetings
-              </span>
-            </div>
-          </div>
-
-          {/* Agent Control Grid */}
-          <div className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Bot className="w-4 h-4 text-[#a78bfa]" />
-              <span className="font-pixel text-[8px] text-[#a78bfa] tracking-wider">TEAM ROSTER</span>
-              <div className="flex-1 h-[2px] bg-[#374151]" />
               <button
-                onClick={() => setShowAddAgent(true)}
-                className="flex items-center gap-1 px-2 py-1 border border-dashed border-[#4b5563] text-[#6b7280] hover:border-[#a78bfa] hover:text-[#a78bfa] transition-colors"
+                onClick={() => { setShowConsole(true); setConsoleCollapsed(false); }}
+                className={`flex items-center gap-1 px-1.5 py-0.5 border transition-colors ${
+                  showConsole ? "border-[#10b981] text-[#10b981]" : "border-[#374151] text-[#4b5563] hover:text-[#10b981] hover:border-[#10b981]"
+                }`}
+                title="Toggle Console"
               >
-                <Plus className="w-3 h-3" />
-                <span className="font-pixel text-[6px]">HIRE AGENT</span>
+                <Terminal className="w-3 h-3" />
               </button>
             </div>
+          </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              {Object.entries(allAgentRoles).map(([key, role]) => {
-                const isRunning = runningAgents.has(key);
-                const msg = agentMessages[key];
-                const isCustom = "custom" in role && role.custom;
+          {/* Main content: Pixel World + Console (left) | Team Roster (right) */}
+          <div className="flex gap-0">
+            {/* Left: Pixel World + Console */}
+            <div className="flex-1 min-w-0">
+              <div className="px-4 pt-4">
+                <PixelWorld agents={agentStatuses} onSceneClick={handleSceneClick} />
+                <div className="text-center mt-1">
+                  <span className="text-[8px] text-[#4b5563]">
+                    Click the blackboard for notes | Click the meeting table for team meetings
+                  </span>
+                </div>
+              </div>
 
-                return (
-                  <div
-                    key={key}
-                    className="group border-2 bg-[#111827] p-3 transition-all relative"
-                    style={{
-                      borderColor: isRunning ? role.color : "#374151",
-                      boxShadow: isRunning ? `0 0 12px ${role.color}30` : "none",
-                    }}
+              {/* Console Panel */}
+              {showConsole && (
+                <div className="px-4 pt-2">
+                  <ConsolePanel
+                    logs={consoleLogs}
+                    isCollapsed={consoleCollapsed}
+                    onToggleCollapse={() => setConsoleCollapsed(c => !c)}
+                    onClose={() => setShowConsole(false)}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Right: Team Roster */}
+            <div className="w-56 shrink-0 border-l-2 border-[#374151] bg-[#0f0f23] overflow-y-auto">
+              <div className="p-3">
+                <div className="flex items-center gap-2 mb-3">
+                  <Bot className="w-3.5 h-3.5 text-[#a78bfa]" />
+                  <span className="font-pixel text-[7px] text-[#a78bfa] tracking-wider">TEAM ROSTER</span>
+                  <div className="flex-1" />
+                  <button
+                    onClick={() => setShowAddAgent(true)}
+                    className="p-1 border border-dashed border-[#4b5563] text-[#6b7280] hover:border-[#a78bfa] hover:text-[#a78bfa] transition-colors"
+                    title="Hire Agent"
                   >
-                    {/* Delete button for custom agents */}
-                    {isCustom && !isRunning && (
-                      <button
-                        onClick={async () => {
-                          if (!confirm(`Remove ${role.name}?`)) return;
-                          await fetch(`/api/agents/custom/${key}`, { method: "DELETE" });
-                          loadCustomAgents();
-                        }}
-                        className="absolute top-1.5 right-1.5 p-0.5 text-[#374151] hover:text-[#ef4444] opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    )}
+                    <Plus className="w-3 h-3" />
+                  </button>
+                </div>
 
-                    <div className="flex items-center gap-2 mb-2">
+                <div className="space-y-2">
+                  {Object.entries(allAgentRoles).map(([key, role]) => {
+                    const isRunning = runningAgents.has(key);
+                    const inMeeting = meetingAgents.has(key);
+                    const msg = agentMessages[key];
+                    const isCustom = "custom" in role && role.custom;
+
+                    return (
                       <div
-                        className="w-6 h-6 flex items-center justify-center border"
-                        style={{ borderColor: role.color, background: `${role.color}15` }}
+                        key={key}
+                        className="group border bg-[#111827] p-2 transition-all relative"
+                        style={{
+                          borderColor: isRunning || inMeeting ? role.color : "#374151",
+                          boxShadow: isRunning ? `0 0 8px ${role.color}20` : "none",
+                        }}
                       >
-                        <Bot className="w-3.5 h-3.5" style={{ color: role.color }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1">
-                          <span className="font-pixel text-[7px] tracking-wider" style={{ color: role.color }}>
-                            {role.name.toUpperCase()}
-                          </span>
-                          {isCustom && (
-                            <span className="font-pixel text-[5px] px-1 border border-[#374151] text-[#6b7280]">
-                              CUSTOM
-                            </span>
+                        {/* Delete button for custom agents */}
+                        {isCustom && !isRunning && (
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Remove ${role.name}?`)) return;
+                              await fetch(`/api/agents/custom/${key}`, { method: "DELETE" });
+                              loadCustomAgents();
+                            }}
+                            className="absolute top-1 right-1 p-0.5 text-[#374151] hover:text-[#ef4444] opacity-0 group-hover:opacity-100 transition-all"
+                          >
+                            <Trash2 className="w-2.5 h-2.5" />
+                          </button>
+                        )}
+
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <div
+                            className="w-5 h-5 flex items-center justify-center border"
+                            style={{ borderColor: role.color, background: `${role.color}15` }}
+                          >
+                            <Bot className="w-3 h-3" style={{ color: role.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1">
+                              <span className="font-pixel text-[6px] tracking-wider" style={{ color: role.color }}>
+                                {role.name.toUpperCase()}
+                              </span>
+                              {isCustom && (
+                                <span className="font-pixel text-[5px] px-0.5 border border-[#374151] text-[#6b7280]">
+                                  C
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {isRunning ? (
+                            <Loader2 className="w-3 h-3 animate-spin text-[#10b981]" />
+                          ) : inMeeting ? (
+                            <Users className="w-3 h-3 text-[#fbbf24]" />
+                          ) : (
+                            <Coffee className="w-2.5 h-2.5 text-[#374151]" />
                           )}
                         </div>
-                        <div className="text-[8px] text-[#6b7280] truncate">{role.title}</div>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {isRunning ? (
-                          <div className="flex items-center gap-1 text-[#10b981]">
-                            <Monitor className="w-3 h-3" />
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          </div>
-                        ) : (
-                          <Coffee className="w-3 h-3 text-[#4b5563]" />
+
+                        {(isRunning || inMeeting) && msg && (
+                          <div className="text-[7px] text-[#6b7280] truncate mb-1 pl-6">{msg}</div>
                         )}
+
+                        <button
+                          onClick={() => runAgent(key)}
+                          disabled={isRunning || inMeeting}
+                          className="w-full pixel-btn px-1.5 py-1 flex items-center justify-center gap-1 disabled:opacity-30 text-[8px]"
+                          style={{
+                            background: isRunning ? `${role.color}15` : `${role.color}08`,
+                            borderColor: role.color,
+                            color: role.color,
+                          }}
+                        >
+                          {isRunning ? (
+                            <>
+                              <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                              <span className="font-pixel text-[5px]">WORKING...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Swords className="w-2.5 h-2.5" />
+                              <span className="font-pixel text-[5px]">SUMMON</span>
+                            </>
+                          )}
+                        </button>
                       </div>
-                    </div>
-
-                    {msg && isRunning && (
-                      <div className="text-[8px] text-[#6b7280] truncate mb-2">{msg}</div>
-                    )}
-
-                    <button
-                      onClick={() => runAgent(key)}
-                      disabled={isRunning}
-                      className="w-full pixel-btn px-2 py-1.5 flex items-center justify-center gap-1.5 disabled:opacity-40 text-[9px]"
-                      style={{
-                        background: isRunning ? `${role.color}15` : `${role.color}10`,
-                        borderColor: role.color,
-                        color: role.color,
-                      }}
-                    >
-                      {isRunning ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span className="font-pixel text-[6px]">WORKING...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Swords className="w-3 h-3" />
-                          <span className="font-pixel text-[6px]">SUMMON</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -773,14 +856,21 @@ export function ProjectView({
                 <span className="text-[9px] text-[#6b7280]">- {project.name}</span>
               </div>
               <button
-                onClick={() => setShowMeeting(false)}
+                onClick={() => { setShowMeeting(false); setMeetingAgents(new Set()); }}
                 className="p-1 hover:bg-[#1f2937] transition-colors text-[#6b7280] hover:text-[#e5e7eb]"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto">
-              <MeetingRoom projectId={projectId} customAgents={customAgents} onClose={() => setShowMeeting(false)} />
+              <MeetingRoom
+                projectId={projectId}
+                customAgents={customAgents}
+                onClose={() => { setShowMeeting(false); setMeetingAgents(new Set()); }}
+                onMeetingAgentsChange={setMeetingAgents}
+                onAgentMessage={(key, msg) => setAgentMessages(prev => ({ ...prev, [key]: msg }))}
+                onLog={addLog}
+              />
             </div>
           </div>
         </div>

@@ -41,9 +41,12 @@ interface MeetingRoomProps {
   projectId: string;
   customAgents: CustomAgent[];
   onClose: () => void;
+  onMeetingAgentsChange?: (agents: Set<string>) => void;
+  onAgentMessage?: (key: string, message: string) => void;
+  onLog?: (level: "info" | "agent" | "system" | "error" | "debug", source: string, message: string) => void;
 }
 
-export function MeetingRoom({ projectId, customAgents, onClose }: MeetingRoomProps) {
+export function MeetingRoom({ projectId, customAgents, onClose, onMeetingAgentsChange, onAgentMessage, onLog }: MeetingRoomProps) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [activeMeeting, setActiveMeeting] = useState<Meeting | null>(null);
   const [liveMessages, setLiveMessages] = useState<MeetingMessage[]>([]);
@@ -103,6 +106,13 @@ export function MeetingRoom({ projectId, customAgents, onClose }: MeetingRoomPro
     setThinkingAgent(null);
     setShowHistory(false);
 
+    // Notify parent: agents are heading to the meeting table
+    onMeetingAgentsChange?.(new Set(selectedAgents));
+    const agentNames = Array.from(selectedAgents).map(k => allAgents.find(a => a.key === k)?.name || k);
+    onLog?.("system", "Meeting", `Starting meeting: "${topic}"`);
+    onLog?.("info", "Meeting", `Participants: ${agentNames.join(", ")} | ${rounds} round(s)`);
+    onLog?.("debug", "cli", `Spawning ${agentNames.length} claude -p processes sequentially...`);
+
     try {
       const response = await fetch(`/api/projects/${projectId}/meetings`, {
         method: "POST",
@@ -119,6 +129,7 @@ export function MeetingRoom({ projectId, customAgents, onClose }: MeetingRoomPro
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let eventType = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -127,26 +138,46 @@ export function MeetingRoom({ projectId, customAgents, onClose }: MeetingRoomPro
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
-        let eventType = "";
         for (const line of lines) {
           if (line.startsWith("event: ")) {
             eventType = line.slice(7).trim();
           } else if (line.startsWith("data: ") && eventType) {
             try {
               const data = JSON.parse(line.slice(6));
-              if (eventType === "agent_thinking") {
+              if (eventType === "meeting_start") {
+                onLog?.("system", "Meeting", "SSE stream connected, meeting in progress");
+                // Show first agent as thinking immediately
+                if (data.agents?.length > 0) {
+                  setThinkingAgent({ name: data.agents[0].name, color: data.agents[0].color });
+                  onAgentMessage?.(data.agents[0].key, "Thinking...");
+                  onLog?.("debug", "cli", `claude -p "<${data.agents[0].name} prompt + context>"`);
+                  onLog?.("info", data.agents[0].name, "Thinking...");
+                }
+              } else if (eventType === "agent_thinking") {
                 setThinkingAgent({ name: data.name, color: data.color });
+                onAgentMessage?.(data.key, "Thinking...");
+                onLog?.("debug", "cli", `claude -p "<${data.name} prompt + conversation history>"`);
+                onLog?.("info", data.name, "Thinking...");
               } else if (eventType === "agent_message") {
                 setThinkingAgent(null);
                 setLiveMessages((prev) => [...prev, data as MeetingMessage]);
+                // Show a short snippet of the message in the speech bubble
+                const snippet = (data.content as string).slice(0, 60) + ((data.content as string).length > 60 ? "..." : "");
+                onAgentMessage?.(data.key, snippet);
+                onLog?.("agent", data.name, (data.content as string).slice(0, 120) + ((data.content as string).length > 120 ? "..." : ""));
               } else if (eventType === "meeting_end") {
                 setThinkingAgent(null);
+                onMeetingAgentsChange?.(new Set());
+                onLog?.("system", "Meeting", "Meeting concluded");
                 loadMeetings();
               } else if (eventType === "error") {
                 setLiveMessages((prev) => [
                   ...prev,
                   { id: "err", role: "system", name: "System", color: "#ef4444", content: data.text, createdAt: new Date().toISOString() },
                 ]);
+                onLog?.("error", "Meeting", data.text);
+              } else if (eventType === "system") {
+                onLog?.("info", "Meeting", data.text);
               }
             } catch { /* skip */ }
             eventType = "";
@@ -161,6 +192,7 @@ export function MeetingRoom({ projectId, customAgents, onClose }: MeetingRoomPro
     } finally {
       setIsRunning(false);
       setThinkingAgent(null);
+      onMeetingAgentsChange?.(new Set());
     }
   };
 
@@ -173,8 +205,8 @@ export function MeetingRoom({ projectId, customAgents, onClose }: MeetingRoomPro
   const displayMessages = activeMeeting ? activeMeeting.messages : liveMessages;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-4xl max-h-[90vh] bg-[#0a0a1a] border-2 border-[#374151] flex flex-col">
+    <div className="flex flex-col h-full">
+      <div className="flex-1 flex flex-col bg-[#0a0a1a]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-2 bg-[#111827] border-b-2 border-[#374151]">
           <div className="flex items-center gap-2">

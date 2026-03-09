@@ -47,11 +47,16 @@ export default function Home() {
         {activeView === "dashboard" && (
           <Dashboard
             onSelectProject={(id) => navigate("project", id)}
+            onNewProject={() => setShowNewProject(true)}
             refreshKey={refreshKey}
           />
         )}
         {activeView === "project" && activeProjectId && (
-          <ProjectView projectId={activeProjectId} onRefresh={refresh} />
+          <ProjectView
+            projectId={activeProjectId}
+            onRefresh={refresh}
+            onDelete={() => { setActiveProjectId(null); setActiveView("dashboard"); refresh(); }}
+          />
         )}
         {activeView === "arena" && <AgentArena />}
         {activeView === "agent" && <AgentChat />}

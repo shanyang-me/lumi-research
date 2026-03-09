@@ -16,7 +16,7 @@ const BUILTIN_PROMPTS: Record<string, string> = {
   commander: "You are Commander, the mission coordinator. You synthesize everyone's input and suggest priorities.",
 };
 
-function runClaude(prompt: string): Promise<string> {
+function runClaude(prompt: string, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     const env = { ...process.env, FORCE_COLOR: "0" };
     delete (env as Record<string, string | undefined>).CLAUDECODE;
@@ -26,14 +26,32 @@ function runClaude(prompt: string): Promise<string> {
     });
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const finish = (fn: typeof resolve | typeof reject, val: string | Error) => {
+      if (settled) return;
+      settled = true;
+      (fn as (v: string | Error) => void)(val);
+    };
     child.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
     child.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
     child.on("close", (code: number | null) => {
-      if (code === 0) resolve(stdout.trim());
-      else reject(new Error(stderr || `claude exited with code ${code}`));
+      if (code === 0) finish(resolve, stdout.trim());
+      else finish(reject, new Error(stderr || `claude exited with code ${code}`));
     });
-    child.on("error", reject);
-    setTimeout(() => { child.kill(); reject(new Error("Agent timed out after 90s")); }, 90000);
+    child.on("error", (e) => finish(reject, e));
+    // Timeout: kill after 60s
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(reject, new Error("Agent timed out after 60s"));
+    }, 60000);
+    child.on("close", () => clearTimeout(timer));
+    // Abort if client disconnects
+    if (signal) {
+      signal.addEventListener("abort", () => {
+        child.kill("SIGKILL");
+        finish(reject, new Error("Aborted"));
+      });
+    }
   });
 }
 
@@ -116,31 +134,35 @@ Experiments: ${project.experiments.map((e) => `${e.name} (${e.status})`).join(",
   });
 
   const encoder = new TextEncoder();
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (event: string, data: Record<string, unknown>) => {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-      };
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
 
-      send("meeting_start", { meetingId: meeting.id, topic, agents: agentInfo.map((a) => ({ key: a.key, name: a.name, color: a.color })) });
+  const send = async (event: string, data: Record<string, unknown>) => {
+    try {
+      await writer.write(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+    } catch { /* stream closed */ }
+  };
 
-      try {
-        const conversation: { name: string; content: string }[] = [];
+  // Run meeting in background — don't await
+  (async () => {
+    try {
+      await send("meeting_start", { meetingId: meeting.id, topic, agents: agentInfo.map((a) => ({ key: a.key, name: a.name, color: a.color })) });
 
-        for (let round = 0; round < rounds; round++) {
-          if (rounds > 1) {
-            send("system", { text: `--- Round ${round + 1} of ${rounds} ---` });
-          }
+      const conversation: { name: string; content: string }[] = [];
 
-          for (const agent of agentInfo) {
-            send("agent_thinking", { key: agent.key, name: agent.name, color: agent.color });
+      for (let round = 0; round < rounds; round++) {
+        if (rounds > 1) {
+          await send("system", { text: `--- Round ${round + 1} of ${rounds} ---` });
+        }
 
-            // Build the prompt with full conversation context
-            const convText = conversation.length > 0
-              ? conversation.map((m) => `[${m.name}]: ${m.content}`).join("\n\n")
-              : "(No prior discussion yet)";
+        for (const agent of agentInfo) {
+          await send("agent_thinking", { key: agent.key, name: agent.name, color: agent.color });
 
-            const prompt = `${agent.systemPrompt}
+          const convText = conversation.length > 0
+            ? conversation.map((m) => `[${m.name}]: ${m.content}`).join("\n\n")
+            : "(No prior discussion yet)";
+
+          const prompt = `${agent.systemPrompt}
 
 You are in a team meeting to discuss: "${topic}"
 
@@ -154,51 +176,48 @@ ${round > 0 ? `This is round ${round + 1}. Build on the previous discussion and 
 
 Now it's your turn to contribute. Be concise (2-4 paragraphs). Address specific points raised by others if relevant. Speak naturally as yourself.`;
 
-            const response = await runClaude(prompt);
+          const response = await runClaude(prompt);
 
-            // Store message
-            const msg = await prisma.meetingMessage.create({
-              data: {
-                role: agent.key,
-                name: agent.name,
-                color: agent.color,
-                content: response,
-                meetingId: meeting.id,
-              },
-            });
-
-            conversation.push({ name: agent.name, content: response });
-
-            send("agent_message", {
-              id: msg.id,
-              key: agent.key,
+          const msg = await prisma.meetingMessage.create({
+            data: {
+              role: agent.key,
               name: agent.name,
               color: agent.color,
               content: response,
-            });
-          }
+              meetingId: meeting.id,
+            },
+          });
+
+          conversation.push({ name: agent.name, content: response });
+
+          await send("agent_message", {
+            id: msg.id,
+            key: agent.key,
+            name: agent.name,
+            color: agent.color,
+            content: response,
+          });
         }
-
-        // Mark meeting as completed
-        await prisma.meeting.update({
-          where: { id: meeting.id },
-          data: { status: "completed" },
-        });
-
-        send("meeting_end", { meetingId: meeting.id });
-      } catch (error) {
-        send("error", { text: `Meeting error: ${error}` });
-      } finally {
-        controller.close();
       }
-    },
-  });
 
-  return new Response(stream, {
+      await prisma.meeting.update({
+        where: { id: meeting.id },
+        data: { status: "completed" },
+      });
+      await send("meeting_end", { meetingId: meeting.id });
+    } catch (error) {
+      await send("error", { text: `Meeting error: ${error}` });
+    } finally {
+      try { await writer.close(); } catch { /* already closed */ }
+    }
+  })();
+
+  return new Response(readable, {
     headers: {
       "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }

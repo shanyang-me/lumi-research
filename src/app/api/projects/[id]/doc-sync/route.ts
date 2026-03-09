@@ -26,7 +26,6 @@ function buildProjectMarkdown(
 ): string {
   const lines: string[] = [];
 
-  lines.push(`# ${project.name}`);
   lines.push(`Last synced: ${formatDate(new Date())}`);
   lines.push(`Status: ${project.status} | Stage: ${project.currentStage}`);
   lines.push("");
@@ -133,7 +132,7 @@ function buildProjectMarkdown(
   // Recent Meetings
   if (meetings.length > 0) {
     lines.push("## Recent Meetings");
-    const recent = meetings.slice(0, 5); // last 5
+    const recent = meetings.slice(0, 5);
     for (const m of recent) {
       lines.push(`### ${m.topic} (${formatDate(m.createdAt)})`);
       lines.push(`Status: ${m.status}`);
@@ -168,7 +167,7 @@ export async function POST(
   const notion = getNotionClient();
   if (!notion) {
     return NextResponse.json(
-      { error: "NOTION_API_KEY not configured. Add it to .env" },
+      { error: "NOTION_API_KEY not configured" },
       { status: 500 }
     );
   }
@@ -176,7 +175,7 @@ export async function POST(
   const parentPageId = process.env.NOTION_DOC_PAGE_ID;
   if (!parentPageId) {
     return NextResponse.json(
-      { error: "NOTION_DOC_PAGE_ID not configured. Add the parent page ID to .env" },
+      { error: "NOTION_DOC_PAGE_ID not configured" },
       { status: 500 }
     );
   }
@@ -217,9 +216,6 @@ export async function POST(
 
   const markdown = buildProjectMarkdown(project, tasks, notes, meetings);
   const blocks = markdownToBlocks(markdown);
-
-  // Check if we already have a Notion page for this project (stored in project description metadata)
-  // We'll search for existing page by title
   const searchTitle = `[Lumi] ${project.name}`;
 
   try {
@@ -244,13 +240,12 @@ export async function POST(
     }
 
     if (pageId) {
-      // Delete existing children and re-add (update)
+      // Delete existing children and re-add
       const existingBlocks = await notion.blocks.children.list({ block_id: pageId, page_size: 100 });
       for (const block of existingBlocks.results) {
         await notion.blocks.delete({ block_id: block.id });
       }
 
-      // Add new blocks (Notion API limits to 100 blocks per request)
       for (let i = 0; i < blocks.length; i += 100) {
         await notion.blocks.children.append({
           block_id: pageId,
@@ -266,10 +261,9 @@ export async function POST(
         properties: {
           title: { title: [{ text: { content: searchTitle } }] },
         },
-        children: blocks.slice(0, 100), // first 100 blocks
+        children: blocks.slice(0, 100),
       });
 
-      // Append remaining blocks if > 100
       for (let i = 100; i < blocks.length; i += 100) {
         await notion.blocks.children.append({
           block_id: page.id,

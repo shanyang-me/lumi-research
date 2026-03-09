@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { DEFAULT_TASKS } from "@/lib/pipeline";
+import { getNotionClient } from "@/lib/notion";
+
+const NOTION_PARENT_PAGE_ID = process.env.NOTION_DOC_PAGE_ID || "";
 
 export async function GET() {
   const projects = await prisma.project.findMany({
@@ -43,6 +46,33 @@ export async function POST(req: Request) {
       projectId: project.id,
     })),
   });
+
+  // Create Notion page in background (fire and forget)
+  const notion = getNotionClient();
+  if (notion && NOTION_PARENT_PAGE_ID) {
+    const pageTitle = `[Lumi] ${project.name}`;
+    const content = body.description
+      ? `## Overview\n${body.description}\n\n---\n*Page created automatically by Lumi Research Manager.*`
+      : `*Page created automatically by Lumi Research Manager. Use the Documenter agent to sync full project data.*`;
+
+    notion.pages.create({
+      parent: { page_id: NOTION_PARENT_PAGE_ID },
+      properties: {
+        title: { title: [{ text: { content: pageTitle } }] },
+      },
+      children: [
+        {
+          object: "block",
+          type: "paragraph",
+          paragraph: { rich_text: [{ type: "text", text: { content } }] },
+        },
+      ],
+    }).then(() => {
+      console.log(`[notion] Created page: ${pageTitle}`);
+    }).catch((err) => {
+      console.error(`[notion] Failed to create page: ${err}`);
+    });
+  }
 
   return NextResponse.json(project, { status: 201 });
 }
