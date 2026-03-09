@@ -88,6 +88,21 @@ Respond ONLY with JSON (no markdown, no code fences):
   "priorities": [{"task": "...", "reason": "...", "urgency": "high|medium|low"}],
   "recommendations": ["..."]
 }`,
+
+  documenter: `You are the DOCUMENTER agent - a documentation specialist. Your job is to:
+1. Review the entire project state and identify what needs documenting
+2. Summarize key decisions, findings, and progress
+3. Flag any undocumented areas or missing information
+4. Suggest documentation improvements
+
+Respond ONLY with JSON (no markdown, no code fences):
+{
+  "summary": "Current project documentation status",
+  "documented": ["well-documented areas"],
+  "gaps": ["areas lacking documentation"],
+  "suggestions": ["how to improve docs"],
+  "changelog": ["recent changes that should be noted"]
+}`,
 };
 
 function runClaude(prompt: string): Promise<string> {

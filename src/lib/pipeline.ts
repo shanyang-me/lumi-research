@@ -49,6 +49,13 @@ export const AGENT_ROLES = {
     color: "#06b6d4",
     stage: "data_prep",
   },
+  documenter: {
+    name: "Documenter",
+    title: "Documentation Agent",
+    description: "Continuously syncs project documentation to Notion",
+    color: "#f59e0b",
+    stage: null,
+  },
   commander: {
     name: "Commander",
     title: "Mission Commander",

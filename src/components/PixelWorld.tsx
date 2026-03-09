@@ -90,6 +90,7 @@ const LOUNGE = { x: 700, y: 340 };
 // Hitboxes (scaled)
 const HITBOXES: { id: string; x: number; y: number; w: number; h: number }[] = [
   { id: "whiteboard", x: 220, y: 95, w: 90, h: 54 },
+  { id: "meeting_table", x: 360, y: 400, w: 100, h: 55 },
 ];
 
 // ---- Helpers ----
@@ -486,6 +487,53 @@ function drawWaterCooler(ctx: CanvasRenderingContext2D, x: number, y: number) {
   px(ctx, x + 8, y + 28, 8, 4, "#9ca3af");
 }
 
+function drawMeetingTable(ctx: CanvasRenderingContext2D, x: number, y: number, hovered: boolean, frame: number) {
+  if (hovered) {
+    ctx.fillStyle = "#a78bfa";
+    ctx.globalAlpha = 0.06 + Math.sin(frame * 0.1) * 0.03;
+    ctx.fillRect(x - 4, y - 4, 108, 63);
+    ctx.globalAlpha = 1;
+  }
+  // Table surface (oval-ish conference table)
+  px(ctx, x + 10, y + 10, 80, 30, hovered ? "#8b6a48" : "#7a6250");
+  px(ctx, x + 6, y + 14, 88, 22, hovered ? "#8b6a48" : "#7a6250");
+  // Table edge highlight
+  px(ctx, x + 12, y + 12, 76, 2, "#9b8260");
+  // Table legs
+  px(ctx, x + 16, y + 40, 6, 14, C.deskLeg);
+  px(ctx, x + 78, y + 40, 6, 14, C.deskLeg);
+  // Chairs around the table
+  const chairPositions = [
+    { cx: x + 6, cy: y + 18 },    // left
+    { cx: x + 88, cy: y + 18 },   // right
+    { cx: x + 28, cy: y + 2 },    // top left
+    { cx: x + 58, cy: y + 2 },    // top right
+    { cx: x + 28, cy: y + 40 },   // bottom left
+    { cx: x + 58, cy: y + 40 },   // bottom right
+  ];
+  for (const cp of chairPositions) {
+    px(ctx, cp.cx, cp.cy, 12, 10, C.chairSeat);
+    px(ctx, cp.cx + 2, cp.cy + 1, 8, 8, "#4b5563");
+  }
+  // Items on table
+  px(ctx, x + 30, y + 18, 8, 5, "#374151"); // laptop
+  px(ctx, x + 32, y + 19, 4, 2, "#3b82f6"); // screen glow
+  px(ctx, x + 55, y + 20, 6, 4, C.mug);
+  px(ctx, x + 45, y + 16, 4, 6, "#e5e7eb"); // paper
+  // Label
+  if (hovered) {
+    ctx.fillStyle = "#a78bfa";
+    ctx.font = "bold 10px monospace";
+    ctx.fillText("CLICK FOR MEETING", x - 4, y + 62);
+  } else {
+    ctx.fillStyle = C.textDim;
+    ctx.globalAlpha = 0.4;
+    ctx.font = "9px monospace";
+    ctx.fillText("MEETING TABLE", x + 12, y + 62);
+    ctx.globalAlpha = 1;
+  }
+}
+
 function drawStatusBar(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, agent: AgentStatus) {
   ctx.fillStyle = C.statusBg;
   ctx.globalAlpha = 0.92;
@@ -619,6 +667,9 @@ export function PixelWorld({ agents, onSceneClick }: PixelWorldProps) {
     drawPlant(ctx, LOUNGE.x + 100, LOUNGE.y - 10, frame);
     drawPlant(ctx, DIVIDER_X + 20, WALL_Y + 10, frame);
     drawWaterCooler(ctx, LOUNGE.x - 50, LOUNGE.y - 16);
+
+    // ---- Meeting table ----
+    drawMeetingTable(ctx, 360, 400, hovered === "meeting_table", frame);
 
     // ---- Agents ----
     const IDLE_CHATTER = [

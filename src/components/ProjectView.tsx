@@ -7,6 +7,7 @@ import { QuestMap } from "./QuestMap";
 import { EntityTable } from "./EntityTable";
 import { CreateDialog } from "./CreateDialog";
 import { Blackboard } from "./Blackboard";
+import { MeetingRoom } from "./MeetingRoom";
 import { PixelWorld } from "./PixelWorld";
 import type { AgentStatus } from "./PixelWorld";
 import { AGENT_ROLES, PIPELINE_STAGES } from "@/lib/pipeline";
@@ -30,6 +31,7 @@ import {
   X,
   Trash2,
   ChevronDown,
+  Users,
 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -69,6 +71,7 @@ export function ProjectView({
   const [createType, setCreateType] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"arena" | "quest" | "inventory">("arena");
   const [showBoard, setShowBoard] = useState(false);
+  const [showMeeting, setShowMeeting] = useState(false);
 
   // Arena state
   const [tasks, setTasks] = useState<PipelineTask[]>([]);
@@ -124,7 +127,7 @@ export function ProjectView({
 
   // Build agent statuses for PixelWorld
   const agentStatuses: AgentStatus[] = Object.entries(allAgentRoles)
-    .filter(([key]) => key !== "commander")
+    .filter(([key]) => key !== "commander" && key !== "documenter")
     .map(([key, role]) => {
       const isRunning = runningAgents.has(key);
 
@@ -137,6 +140,16 @@ export function ProjectView({
       return { id: key, name: role.name, color: role.color, state, message };
     });
 
+  // Add documenter
+  const documenterRunning = runningAgents.has("documenter");
+  agentStatuses.push({
+    id: "documenter",
+    name: "Documenter",
+    color: AGENT_ROLES.documenter.color,
+    state: documenterRunning ? "working" : "idle",
+    message: documenterRunning ? agentMessages["documenter"] || "Syncing to Notion..." : "Standing by",
+  });
+
   // Add commander
   const commanderRunning = runningAgents.has("commander");
   agentStatuses.push({
@@ -147,7 +160,34 @@ export function ProjectView({
     message: commanderRunning ? "Coordinating..." : "Overseeing",
   });
 
+  const runDocumenter = async () => {
+    setRunningAgents((prev) => new Set(prev).add("documenter"));
+    setAgentMessages((prev) => ({ ...prev, documenter: "Syncing to Notion..." }));
+    try {
+      const res = await fetch(`/api/projects/${projectId}/doc-sync`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setAgentMessages((prev) => ({ ...prev, documenter: data.error || "Sync failed" }));
+      } else {
+        setAgentMessages((prev) => ({
+          ...prev,
+          documenter: `${data.action === "created" ? "Created" : "Updated"} Notion page`,
+        }));
+      }
+    } catch (err) {
+      setAgentMessages((prev) => ({ ...prev, documenter: `Error: ${err}` }));
+    } finally {
+      setRunningAgents((prev) => {
+        const next = new Set(prev);
+        next.delete("documenter");
+        return next;
+      });
+    }
+  };
+
   const runAgent = async (role: string) => {
+    if (role === "documenter") return runDocumenter();
+
     setRunningAgents((prev) => new Set(prev).add(role));
     setAgentMessages((prev) => ({ ...prev, [role]: "Starting..." }));
 
@@ -212,6 +252,8 @@ export function ProjectView({
   const handleSceneClick = (item: string) => {
     if (item === "whiteboard") {
       setShowBoard(true);
+    } else if (item === "meeting_table") {
+      setShowMeeting(true);
     }
   };
 
@@ -372,7 +414,7 @@ export function ProjectView({
             <PixelWorld agents={agentStatuses} onSceneClick={handleSceneClick} />
             <div className="text-center mt-1">
               <span className="text-[8px] text-[#4b5563]">
-                Click the blackboard to open project notes
+                Click the blackboard for notes | Click the meeting table for team meetings
               </span>
             </div>
           </div>
@@ -715,6 +757,30 @@ export function ProjectView({
             {/* Blackboard content */}
             <div className="flex-1 overflow-y-auto">
               <Blackboard projectId={projectId} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Meeting Room overlay */}
+      {showMeeting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="relative w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col bg-[#0a0a1a] border-2 border-[#374151]">
+            <div className="flex items-center justify-between px-4 py-2 bg-[#111827] border-b-2 border-[#374151]">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-[#a78bfa]" />
+                <span className="font-pixel text-[9px] text-[#a78bfa] tracking-wider">MEETING ROOM</span>
+                <span className="text-[9px] text-[#6b7280]">- {project.name}</span>
+              </div>
+              <button
+                onClick={() => setShowMeeting(false)}
+                className="p-1 hover:bg-[#1f2937] transition-colors text-[#6b7280] hover:text-[#e5e7eb]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <MeetingRoom projectId={projectId} customAgents={customAgents} onClose={() => setShowMeeting(false)} />
             </div>
           </div>
         </div>

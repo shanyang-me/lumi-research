@@ -29,6 +29,7 @@ model Project {
   pipelineTasks PipelineTask[]
   boardNotes    BoardNote[]
   customAgents  CustomAgent[]
+  meetings      Meeting[]
 }
 
 model CustomAgent {
@@ -199,6 +200,32 @@ model BoardNote {
   updatedAt DateTime @updatedAt
 
   @@index([projectId, category])
+}
+
+model Meeting {
+  id        String           @id @default(uuid())
+  topic     String
+  status    String           @default("active") // active, completed
+  projectId String
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages  MeetingMessage[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([projectId])
+}
+
+model MeetingMessage {
+  id        String   @id @default(uuid())
+  role      String   // agent role key or "system"
+  name      String   // display name
+  color     String   @default("#6b7280")
+  content   String
+  meetingId String
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([meetingId])
 }
 
 model AgentLog {
