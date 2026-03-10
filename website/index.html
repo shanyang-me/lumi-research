@@ -203,12 +203,11 @@
     }
     .scene-content {
       position: relative;
-      height: 340px;
       overflow: hidden;
     }
     .scene-canvas {
       width: 100%;
-      height: 100%;
+      image-rendering: pixelated;
     }
 
     /* ── Feature Grid ── */
@@ -797,167 +796,364 @@
     </div>
   </footer>
 
-  <!-- Pixel Scene Script -->
+  <!-- Pixel Scene — faithful port of the real PixelWorld.tsx -->
   <script>
+  (function() {
     const canvas = document.getElementById('pixel-scene');
     const ctx = canvas.getContext('2d');
-    const SCALE = 3;
+    canvas.width = 960;
+    canvas.height = 540;
+    let frame = 0;
 
-    function resize() {
-      const rect = canvas.parentElement.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
+    // ── Palette (matches PixelWorld.tsx) ──
+    const C = {
+      floor:'#1e1b2e', floorLight:'#231f36', floorAlt:'#262240',
+      wall:'#2d2845', wallDark:'#1f1b30', wallMid:'#262040', wallTrim:'#3d3860',
+      ceiling:'#16132a', ceilingLight:'#1a1630',
+      deskTop:'#7a6250', deskLeg:'#4a3a2c',
+      monitorFrame:'#374151', monitorOn:'#0f172a',
+      keyboard:'#374151', chair:'#4b5563', chairSeat:'#374151',
+      counter:'#5c4a3a', counterTop:'#8b7355',
+      coffeeMachine:'#374151', coffeeBody:'#4b5563', coffeePot:'#6b4423',
+      mug:'#e5e7eb', mugCoffee:'#6b4423',
+      fridge:'#9ca3af', fridgeDark:'#6b7280',
+      plant:'#10b981', plantPot:'#92400e', plantDark:'#059669',
+      whiteboardFrame:'#9ca3af',
+      windowFrame:'#4b5563', window:'#1e3a5f', windowSky:'#0c1929',
+      waterCooler:'#60a5fa', waterBody:'#4b5563',
+      bookshelf:'#5c4a3a', bookshelfDark:'#4a3a2c',
+      serverRack:'#374151', serverLight:'#10b981',
+      carpet:'#1a1535', carpetLight:'#201a40',
+      skin:'#ffd6a5', hair:'#374151',
+      textDim:'#6b7280', statusBg:'#111827',
+      doorFrame:'#5c4a3a', poster1:'#7c3aed', poster2:'#ef4444',
+      ceilingLamp:'#fbbf24',
+    };
+    const WALL_Y = 90, DIVIDER_X = 620;
+    const DESKS = [{x:60,y:150},{x:260,y:150},{x:440,y:150},{x:60,y:310},{x:260,y:310},{x:440,y:310}];
+    const KITCHEN = {x:680,y:130}, LOUNGE = {x:700,y:340};
+
+    function px(x,y,w,h,color) { ctx.fillStyle=color; ctx.fillRect(Math.floor(x),Math.floor(y),w,h); }
+    function shade(hex,amt) {
+      const n=parseInt(hex.replace('#',''),16);
+      const r=Math.max(0,Math.min(255,(n>>16)+amt));
+      const g=Math.max(0,Math.min(255,((n>>8)&0xff)+amt));
+      const b=Math.max(0,Math.min(255,(n&0xff)+amt));
+      return '#'+((r<<16)|(g<<8)|b).toString(16).padStart(6,'0');
     }
-    resize();
-    window.addEventListener('resize', resize);
 
-    // Colors
-    const FLOOR = '#1a1a2e';
-    const WALL = '#0f0f23';
-    const DESK = '#4a3728';
-    const DESK_TOP = '#5c4033';
-    const MONITOR = '#111827';
-    const SCREEN_ON = '#1e3a5f';
-    const BOARD = '#2d4a3e';
-
-    // Simple pixel agents
+    // ── Agents ──
     const agents = [
-      { x: 120, y: 160, color: '#4cc9f0', name: 'S', targetX: 120, targetY: 160, speed: 0.4, timer: 0 },
-      { x: 280, y: 140, color: '#fbbf24', name: 'T', targetX: 280, targetY: 140, speed: 0.35, timer: 60 },
-      { x: 440, y: 180, color: '#f472b6', name: 'A', targetX: 440, targetY: 180, speed: 0.45, timer: 120 },
-      { x: 600, y: 150, color: '#fb923c', name: 'C', targetX: 600, targetY: 150, speed: 0.38, timer: 180 },
-      { x: 200, y: 220, color: '#06b6d4', name: 'D', targetX: 200, targetY: 220, speed: 0.42, timer: 90 },
-      { x: 500, y: 200, color: '#f59e0b', name: 'R', targetX: 500, targetY: 200, speed: 0.36, timer: 150 },
-      { x: 350, y: 240, color: '#a78bfa', name: 'M', targetX: 350, targetY: 240, speed: 0.4, timer: 30 },
+      {name:'Scout',   color:'#4cc9f0', state:'working'},
+      {name:'Theorist',color:'#fbbf24', state:'working'},
+      {name:'Architect',color:'#f472b6',state:'working'},
+      {name:'Coder',   color:'#fb923c', state:'idle'},
+      {name:'DataSmith',color:'#06b6d4',state:'idle'},
+      {name:'Documenter',color:'#f59e0b',state:'idle'},
+      {name:'Commander',color:'#a78bfa', state:'idle'},
     ];
+    const agentPos = agents.map(()=>({x:LOUNGE.x, y:LOUNGE.y}));
+    const CHATTER = ['Need more coffee...','Reviewing notes...','Thinking...','Taking a breather','Refueling...','Nice view tonight'];
 
-    function drawPixelRect(x, y, w, h, color) {
-      ctx.fillStyle = color;
-      ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
+    // ── Drawing functions (ported from PixelWorld.tsx) ──
+    function drawFloor() {
+      for(let tx=0;tx<DIVIDER_X;tx+=20) for(let ty=WALL_Y+10;ty<540;ty+=20) {
+        ctx.fillStyle=(tx+ty)%40===0?C.floor:C.floorLight;
+        ctx.fillRect(tx,ty,20,20);
+        ctx.strokeStyle='rgba(255,255,255,0.015)'; ctx.strokeRect(tx+.5,ty+.5,19,19);
+      }
+      for(let tx=DIVIDER_X+8;tx<960;tx+=20) for(let ty=WALL_Y+10;ty<540;ty+=20) {
+        ctx.fillStyle=(tx+ty)%40===0?C.carpet:C.carpetLight;
+        ctx.fillRect(tx,ty,20,20);
+      }
     }
 
-    function drawAgent(agent) {
-      const x = Math.floor(agent.x);
-      const y = Math.floor(agent.y);
-      const s = SCALE;
-      // Body
-      ctx.fillStyle = agent.color;
-      ctx.fillRect(x - 3*s, y - 6*s, 6*s, 8*s);
-      // Head
-      ctx.fillStyle = '#e5c9a8';
-      ctx.fillRect(x - 2*s, y - 10*s, 4*s, 4*s);
-      // Eyes
-      ctx.fillStyle = '#1a1a2e';
-      ctx.fillRect(x - 1*s, y - 9*s, s, s);
-      ctx.fillRect(x + 1*s, y - 9*s, s, s);
-      // Label
-      ctx.fillStyle = agent.color;
-      ctx.font = '9px "Press Start 2P"';
-      ctx.textAlign = 'center';
-      ctx.fillText(agent.name, x, y - 12*s);
+    function drawWalls() {
+      px(0,0,960,WALL_Y+10,C.ceiling);
+      px(0,50,960,WALL_Y-50,C.wallMid);
+      px(0,WALL_Y-5,960,15,C.wall);
+      px(0,WALL_Y+5,960,6,C.wallDark);
+      for(let wx=0;wx<960;wx+=60) px(wx+25,WALL_Y+1,8,4,C.wallTrim);
+      // Divider wall
+      px(DIVIDER_X,WALL_Y,8,420,C.wallDark);
+      px(DIVIDER_X+2,WALL_Y,4,420,C.wallMid);
+      const doorY=WALL_Y+60;
+      px(DIVIDER_X,doorY,8,80,C.floor);
+      px(DIVIDER_X-2,doorY-4,12,6,C.doorFrame);
+      px(DIVIDER_X-2,doorY,3,82,C.doorFrame);
+      px(DIVIDER_X+7,doorY,3,82,C.doorFrame);
+      // Ceiling lights
+      for(const lx of [150,350,520,750]) {
+        px(lx,44,20,3,'#374151');
+        px(lx+4,47,12,2,C.ceilingLamp);
+        ctx.fillStyle=C.ceilingLamp;
+        ctx.globalAlpha=0.04+Math.sin(frame*0.02+lx)*0.01;
+        ctx.fillRect(lx-20,49,60,60);
+        ctx.globalAlpha=1;
+      }
     }
 
-    function drawScene() {
-      const w = canvas.width;
-      const h = canvas.height;
-
-      // Background
-      ctx.fillStyle = WALL;
-      ctx.fillRect(0, 0, w, h * 0.45);
-      ctx.fillStyle = FLOOR;
-      ctx.fillRect(0, h * 0.45, w, h * 0.55);
-
-      // Floor grid
-      ctx.strokeStyle = 'rgba(167,139,250,0.04)';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < w; i += 32) {
-        ctx.beginPath(); ctx.moveTo(i, h * 0.45); ctx.lineTo(i, h); ctx.stroke();
+    function drawWindows() {
+      for(const wx of [70,350,700,850]) {
+        px(wx,52,52,40,C.windowFrame);
+        px(wx+3,55,20,34,C.windowSky); px(wx+27,55,22,34,C.windowSky);
+        px(wx+23,52,4,40,C.windowFrame); px(wx,70,52,4,C.windowFrame);
+        ctx.fillStyle='#fbbf24';
+        ctx.globalAlpha=0.25+Math.sin(frame*0.03+wx)*0.2;
+        px(wx+8,60,2,2,'#fbbf24'); px(wx+35,64,2,2,'#fbbf24'); px(wx+16,78,2,2,'#fbbf24');
+        if(wx===70){ctx.globalAlpha=0.15; px(wx+32,58,8,8,'#fbbf24');}
+        ctx.globalAlpha=1;
       }
-      for (let i = h * 0.45; i < h; i += 32) {
-        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+    }
+
+    function drawBlackboard(x,y) {
+      px(x,y,90,54,C.whiteboardFrame);
+      px(x+3,y+3,84,48,'#1a3a1a');
+      ctx.globalAlpha=0.5;
+      for(let i=0;i<5;i++) px(x+10,y+10+i*9,28+((i*7)%20),2,'#c8d8c0');
+      px(x+56,y+12,6,6,'#ef4444'); px(x+66,y+22,6,6,'#10b981'); px(x+60,y+34,6,6,'#f59e0b');
+      ctx.strokeStyle='#c8d8c0'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x+59,y+18); ctx.lineTo(x+69,y+25); ctx.lineTo(x+63,y+37); ctx.stroke();
+      ctx.globalAlpha=1;
+      px(x+6,y+52,78,4,'#5c3a1e');
+      px(x+16,y+51,8,2,'#e8e0d0'); px(x+30,y+51,6,2,'#fbbf24'); px(x+42,y+51,6,2,'#60a5fa');
+    }
+
+    function drawBookshelf(x,y) {
+      px(x,y,40,70,C.bookshelf);
+      px(x+2,y+2,36,20,C.bookshelfDark); px(x+2,y+26,36,20,C.bookshelfDark); px(x+2,y+50,36,18,C.bookshelfDark);
+      const colors=['#ef4444','#3b82f6','#10b981','#fbbf24','#a78bfa','#f472b6','#06b6d4','#fb923c'];
+      for(let row=0;row<3;row++){const ry=y+4+row*24;let bx=x+4;
+        for(let b=0;b<6;b++){const bw=3+(b%3),bh=14+(b%2)*2;
+          px(bx,ry+(16-bh),bw,bh,colors[(row*6+b)%colors.length]);bx+=bw+1;}}
+    }
+
+    function drawServerRack(x,y) {
+      px(x,y,30,60,C.serverRack); px(x+2,y+2,26,56,'#1a1a2e');
+      for(let i=0;i<5;i++){const sy=y+4+i*11;
+        px(x+4,sy,22,8,'#2d3748'); px(x+6,sy+2,4,4,'#1a1a2e');
+        px(x+20,sy+2,3,2,(frame+i*17)%60<40?C.serverLight:'#064e3b');
+        px(x+20,sy+5,3,2,(frame+i*23)%80<50?'#3b82f6':'#1e3a5f');}
+    }
+
+    function drawPoster(x,y,color,label) {
+      px(x,y,30,36,'#374151'); px(x+2,y+2,26,32,color);
+      ctx.fillStyle='#e5e7eb'; ctx.globalAlpha=0.6; ctx.font='bold 6px monospace'; ctx.fillText(label,x+4,y+20); ctx.globalAlpha=1;
+    }
+
+    function drawClock(x,y) {
+      px(x,y,18,18,'#374151'); px(x+2,y+2,14,14,'#1a1a2e');
+      ctx.fillStyle='#6b7280';
+      for(let h=0;h<12;h++){const a=(h/12)*Math.PI*2-Math.PI/2;px(x+9+Math.cos(a)*5,y+9+Math.sin(a)*5,1,1,'#6b7280');}
+      const ma=((frame*0.002)%1)*Math.PI*2-Math.PI/2, ha=((frame*0.0002)%1)*Math.PI*2-Math.PI/2;
+      ctx.strokeStyle='#e5e7eb'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(x+9,y+9); ctx.lineTo(x+9+Math.cos(ha)*3,y+9+Math.sin(ha)*3); ctx.stroke();
+      ctx.strokeStyle='#a78bfa';
+      ctx.beginPath(); ctx.moveTo(x+9,y+9); ctx.lineTo(x+9+Math.cos(ma)*5,y+9+Math.sin(ma)*5); ctx.stroke();
+    }
+
+    function drawDesk(x,y,occupied,screenColor) {
+      px(x,y+30,90,8,C.deskTop); px(x+4,y+38,6,24,C.deskLeg); px(x+80,y+38,6,24,C.deskLeg);
+      px(x+22,y,46,28,C.monitorFrame);
+      px(x+25,y+3,40,20,occupied?C.monitorOn:'#111111');
+      if(occupied){
+        ctx.fillStyle=screenColor; ctx.globalAlpha=0.15+Math.sin(frame*0.08)*0.05;
+        ctx.fillRect(x+25,y+3,40,20); ctx.globalAlpha=1;
+        for(let i=0;i<4;i++){const lw=10+((frame+i*7)%22);ctx.globalAlpha=0.6;px(x+28,y+7+i*5,Math.min(lw,34),2,screenColor);}
+        ctx.globalAlpha=1;
+        if(frame%40<20) px(x+28+(frame%28),y+17,2,3,screenColor);
       }
+      px(x+40,y+25,10,5,C.monitorFrame);
+      px(x+26,y+33,28,4,C.keyboard);
+      for(let i=0;i<10;i++) px(x+28+i*3,y+34,2,2,'#4b5563');
+      px(x+60,y+34,6,3,'#4b5563');
+      px(x+28,y+54,34,6,C.chairSeat); px(x+30,y+60,4,8,C.chair); px(x+56,y+60,4,8,C.chair);
+      px(x+27,y+44,4,10,C.chair); px(x+59,y+44,4,10,C.chair); px(x+27,y+42,36,4,C.chair);
+    }
+
+    function drawCoffeeMachine(x,y) {
+      px(x,y+36,100,8,C.counterTop); px(x,y+44,100,28,C.counter);
+      px(x+8,y,36,36,C.coffeeBody); px(x+12,y+4,28,20,C.coffeeMachine);
+      px(x+14,y+6,10,14,'#1e40af');
+      ctx.fillStyle='#3b82f6'; ctx.globalAlpha=0.3; ctx.fillRect(x+14,y+6,10,14); ctx.globalAlpha=1;
+      px(x+22,y+24,8,4,C.coffeeMachine); px(x+18,y+28,16,8,C.coffeePot);
+      px(x+38,y+8,4,4,frame%60<30?'#10b981':'#064e3b');
+      px(x+56,y+30,8,6,C.mug); px(x+70,y+30,8,6,'#fbbf24'); px(x+84,y+30,8,6,'#f472b6');
+    }
+
+    function drawFridge(x,y) {
+      px(x,y,32,64,C.fridge); px(x+2,y+2,28,26,C.fridgeDark); px(x+2,y+32,28,30,C.fridgeDark);
+      px(x+26,y+10,3,10,'#9ca3af'); px(x+26,y+40,3,14,'#9ca3af'); px(x,y+28,32,4,'#6b7280');
+    }
+
+    function drawCouch(x,y) {
+      px(x,y+10,90,22,'#4a3a6a');
+      px(x+3,y+12,26,16,'#5a4a7a'); px(x+32,y+12,26,16,'#5a4a7a'); px(x+61,y+12,26,16,'#5a4a7a');
+      px(x,y,90,14,'#3a2a5a'); px(x-4,y+4,6,26,'#4a3a6a'); px(x+88,y+4,6,26,'#4a3a6a');
+      px(x+4,y+32,5,5,C.deskLeg); px(x+81,y+32,5,5,C.deskLeg);
+    }
+
+    function drawPlant(x,y) {
+      px(x+4,y+18,14,14,C.plantPot); px(x+5,y+16,12,4,C.plantPot);
+      const sw=Math.sin(frame*0.03)*2;
+      px(x+7,y+4+sw,8,14,C.plant); px(x+2,y+8+sw,6,8,C.plantDark);
+      px(x+14,y+6-sw,6,10,C.plantDark); px(x+5,y+sw,12,6,C.plant);
+    }
+
+    function drawWaterCooler(x,y) {
+      px(x+5,y+32,14,24,C.waterBody); px(x+2,y+54,20,4,C.waterBody);
+      px(x+4,y,16,32,C.waterBody); px(x+6,y+2,12,26,C.waterCooler);
+      ctx.fillStyle='#93c5fd'; ctx.globalAlpha=0.3; ctx.fillRect(x+6,y+2,12,26); ctx.globalAlpha=1;
+      px(x+8,y+28,8,4,'#9ca3af');
+    }
+
+    function drawMeetingTable(x,y) {
+      px(x+10,y+10,80,30,'#7a6250'); px(x+6,y+14,88,22,'#7a6250');
+      px(x+12,y+12,76,2,'#9b8260');
+      px(x+16,y+40,6,14,C.deskLeg); px(x+78,y+40,6,14,C.deskLeg);
+      const chairs=[{cx:x+6,cy:y+18},{cx:x+88,cy:y+18},{cx:x+28,cy:y+2},{cx:x+58,cy:y+2},{cx:x+28,cy:y+40},{cx:x+58,cy:y+40}];
+      for(const cp of chairs){px(cp.cx,cp.cy,12,10,C.chairSeat);px(cp.cx+2,cp.cy+1,8,8,'#4b5563');}
+      px(x+30,y+18,8,5,'#374151'); px(x+32,y+19,4,2,'#3b82f6');
+      px(x+55,y+20,6,4,C.mug); px(x+45,y+16,4,6,'#e5e7eb');
+      ctx.fillStyle=C.textDim; ctx.globalAlpha=0.4; ctx.font='9px monospace';
+      ctx.textAlign='left'; ctx.fillText('MEETING TABLE',x+12,y+62); ctx.globalAlpha=1;
+    }
+
+    function drawAgentSprite(x,y,color,working) {
+      const bob = working ? Math.sin(frame*0.15)*2 : 0;
+      const bx=Math.floor(x), by=Math.floor(y+bob);
+      px(bx+3,by-14,14,5,C.hair); px(bx+5,by-9,10,9,C.skin);
+      px(bx+7,by-5,2,2,'#1a1a2e'); px(bx+12,by-5,2,2,'#1a1a2e');
+      px(bx+3,by,14,12,color); px(bx+8,by,4,12,shade(color,-30));
+      if(working){
+        px(bx+1,by+2,4,6,color); px(bx+15,by+2,4,6,color);
+        px(bx,by+7,3,2,C.skin); px(bx+17,by+7,3,2,C.skin);
+      } else {
+        const sw=Math.sin(frame*0.06)*2;
+        px(bx+1,by+2+sw,4,7,color); px(bx+15,by+2-sw,4,7,color);
+      }
+      px(bx+5,by+12,4,6,'#2d2845'); px(bx+11,by+12,4,6,'#2d2845');
+    }
+
+    function drawAgentWithCoffee(x,y,color) {
+      const bob=Math.sin(frame*0.05)*2;
+      const bx=Math.floor(x), by=Math.floor(y+bob);
+      px(bx+3,by-14,14,5,C.hair); px(bx+5,by-9,10,9,C.skin);
+      px(bx+7,by-5,2,2,'#1a1a2e'); px(bx+12,by-5,2,2,'#1a1a2e');
+      px(bx+8,by-2,4,2,'#d4a574');
+      px(bx+3,by,14,12,color); px(bx+8,by,4,12,shade(color,-30));
+      px(bx+1,by+2,4,7,color); px(bx+15,by+2,4,5,color);
+      px(bx+19,by+2,7,5,C.mug); px(bx+20,by+3,5,2,C.mugCoffee);
+      if(frame%30<20){ctx.globalAlpha=0.3;px(bx+21,by-2-(frame%10),2,2,'#9ca3af');px(bx+23,by-4-(frame%8),2,2,'#9ca3af');ctx.globalAlpha=1;}
+      px(bx+5,by+12,4,6,'#2d2845'); px(bx+11,by+12,4,6,'#2d2845');
+    }
+
+    function drawBubble(x,y,text,color) {
+      const display = text.length>24 ? text.slice(0,22)+'..' : text;
+      ctx.font='bold 9px monospace';
+      const tw=ctx.measureText(display).width, bw=tw+12, bh=21;
+      const bx=Math.floor(x+10-bw/2), by=Math.floor(y-36-bh);
+      const alpha=0.9+Math.sin(frame*0.06)*0.08;
+      ctx.fillStyle='#111827'; ctx.globalAlpha=alpha; ctx.fillRect(bx,by,bw,bh);
+      ctx.strokeStyle=color; ctx.globalAlpha=alpha*0.6; ctx.lineWidth=2; ctx.strokeRect(bx+.5,by+.5,bw-1,bh-1);
+      ctx.fillStyle='#111827'; ctx.globalAlpha=alpha; ctx.fillRect(bx+bw/2-3,by+bh,6,3); ctx.fillRect(bx+bw/2-2,by+bh+3,4,2);
+      ctx.fillStyle=color; ctx.globalAlpha=alpha; ctx.font='bold 9px monospace'; ctx.textAlign='left';
+      ctx.fillText(display,bx+6,by+15); ctx.globalAlpha=1;
+    }
+
+    function drawStatusBar(x,y,w,agent) {
+      ctx.fillStyle=C.statusBg; ctx.globalAlpha=0.92; ctx.fillRect(x,y,w,32); ctx.globalAlpha=1;
+      ctx.strokeStyle=agent.color; ctx.globalAlpha=0.4; ctx.lineWidth=2; ctx.strokeRect(x+1,y+1,w-2,30); ctx.globalAlpha=1;
+      ctx.fillStyle=agent.color; ctx.font='bold 11px monospace'; ctx.textAlign='left'; ctx.fillText(agent.name,x+8,y+14);
+      const dc=agent.state==='working'?'#10b981':'#4b5563';
+      px(x+w-16,y+8,6,6,dc);
+      ctx.fillStyle=C.textDim; ctx.font='9px monospace';
+      ctx.fillText(agent.state==='working'?'Working...':'On break',x+8,y+26);
+    }
+
+    // ── Main render loop ──
+    function render() {
+      frame++;
+      ctx.fillStyle=C.ceiling; ctx.fillRect(0,0,960,540);
+      drawFloor(); drawWalls(); drawWindows();
+
+      // Room labels
+      ctx.font='bold 11px monospace'; ctx.globalAlpha=0.2; ctx.fillStyle=C.textDim; ctx.textAlign='left';
+      ctx.fillText('W O R K S P A C E',210,140);
+      ctx.fillText('B R E A K   R O O M',680,125);
+      ctx.globalAlpha=1;
 
       // Wall decorations
-      ctx.fillStyle = '#1a1a2e';
-      ctx.fillRect(20, 20, 120, 80);
-      ctx.strokeStyle = '#374151';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(20, 20, 120, 80);
-      // Whiteboard text
-      ctx.fillStyle = '#10b981';
-      ctx.font = '8px "Press Start 2P"';
-      ctx.textAlign = 'left';
-      ctx.fillText('RESEARCH', 30, 50);
-      ctx.fillStyle = '#6b7280';
-      ctx.fillText('NOTES', 30, 68);
-      ctx.fillText('TODO: ...', 30, 86);
+      drawBlackboard(220,95);
+      drawPoster(140,56,C.poster1,'AI');
+      drawPoster(480,56,C.poster2,'ML');
+      drawClock(550,60);
+      drawBookshelf(15,96);
+      drawServerRack(560,96);
 
-      // Desks
-      const deskPositions = [
-        { x: 80, y: h * 0.5 },
-        { x: 240, y: h * 0.5 },
-        { x: 400, y: h * 0.5 },
-        { x: 560, y: h * 0.5 },
-      ];
-      for (const desk of deskPositions) {
-        // Desk
-        drawPixelRect(desk.x, desk.y, 80, 12, DESK_TOP);
-        drawPixelRect(desk.x + 4, desk.y + 12, 8, 20, DESK);
-        drawPixelRect(desk.x + 68, desk.y + 12, 8, 20, DESK);
-        // Monitor
-        drawPixelRect(desk.x + 22, desk.y - 28, 36, 28, MONITOR);
-        drawPixelRect(desk.x + 24, desk.y - 26, 32, 22, SCREEN_ON);
-        // Screen glow
-        ctx.fillStyle = `rgba(76,201,240,${0.03 + Math.random() * 0.02})`;
-        ctx.fillRect(desk.x + 24, desk.y - 26, 32, 22);
-      }
-
-      // Meeting table (center-right)
-      const mx = w * 0.75, my = h * 0.7;
-      drawPixelRect(mx - 40, my, 80, 50, '#3d2b1f');
-      drawPixelRect(mx - 36, my + 4, 72, 42, DESK_TOP);
-      // Chairs
-      for (let i = 0; i < 4; i++) {
-        const angle = (i / 4) * Math.PI * 2;
-        const cx = mx + Math.cos(angle) * 52;
-        const cy = my + 25 + Math.sin(angle) * 30;
-        drawPixelRect(cx - 6, cy - 6, 12, 12, '#374151');
-      }
-
-      // Meeting label
-      ctx.fillStyle = '#4b5563';
-      ctx.font = '7px "Press Start 2P"';
-      ctx.textAlign = 'center';
-      ctx.fillText('MEETING', mx, my - 6);
-
-      // Draw agents
-      for (const agent of agents) drawAgent(agent);
-    }
-
-    function updateAgents() {
-      for (const agent of agents) {
-        agent.timer++;
-        if (agent.timer > 120 + Math.random() * 200) {
-          agent.timer = 0;
-          agent.targetX = 60 + Math.random() * (canvas.width - 120);
-          agent.targetY = canvas.height * 0.48 + Math.random() * (canvas.height * 0.45);
+      // Desks (with agent names)
+      agents.forEach((agent,i)=>{
+        if(i<DESKS.length){
+          const d=DESKS[i];
+          drawDesk(d.x,d.y,agent.state==='working',agent.color);
+          ctx.fillStyle=agent.color; ctx.globalAlpha=0.7; ctx.font='bold 9px monospace'; ctx.textAlign='left';
+          ctx.fillText(agent.name,d.x+14,d.y+75); ctx.globalAlpha=1;
         }
-        const dx = agent.targetX - agent.x;
-        const dy = agent.targetY - agent.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > 2) {
-          agent.x += (dx / dist) * agent.speed;
-          agent.y += (dy / dist) * agent.speed;
+      });
+
+      // Break room
+      drawCoffeeMachine(KITCHEN.x,KITCHEN.y);
+      drawFridge(KITCHEN.x+120,KITCHEN.y-8);
+      drawCouch(LOUNGE.x-20,LOUNGE.y);
+      drawPlant(LOUNGE.x+100,LOUNGE.y-10);
+      drawPlant(DIVIDER_X+20,WALL_Y+10);
+      drawWaterCooler(LOUNGE.x-50,LOUNGE.y-16);
+      drawMeetingTable(360,400);
+
+      // Agents movement and drawing
+      agents.forEach((agent,i)=>{
+        let tx,ty;
+        if(agent.state==='working' && i<DESKS.length){
+          tx=DESKS[i].x+32; ty=DESKS[i].y+36;
+        } else {
+          const slot=i%3;
+          if(slot===0){tx=LOUNGE.x+(i*22)%70;ty=LOUNGE.y-12;}
+          else if(slot===1){tx=KITCHEN.x+30+(i*18)%50;ty=KITCHEN.y+40;}
+          else{tx=LOUNGE.x+30+(i*16)%50;ty=LOUNGE.y+40;}
         }
-      }
+        agentPos[i].x+=(tx-agentPos[i].x)*0.04;
+        agentPos[i].y+=(ty-agentPos[i].y)*0.04;
+
+        if(agent.state==='working') drawAgentSprite(agentPos[i].x,agentPos[i].y,agent.color,true);
+        else drawAgentWithCoffee(agentPos[i].x,agentPos[i].y,agent.color);
+
+        // Speech bubbles (staggered)
+        const cycle=300, show=180, off=i*47;
+        if((frame+off)%cycle<show){
+          const txt=agent.state==='working'?'Working...':CHATTER[(Math.floor(frame/cycle)+i)%CHATTER.length];
+          drawBubble(agentPos[i].x,agentPos[i].y,txt,agent.color);
+        }
+      });
+
+      // Status bars at bottom
+      const barW=Math.floor(952/7);
+      agents.forEach((ag,i)=> drawStatusBar(8+i*barW,500,barW-6,ag));
+
+      // Frame tag
+      ctx.fillStyle=C.textDim; ctx.font='8px monospace'; ctx.globalAlpha=0.2; ctx.textAlign='center';
+      ctx.fillText('LUMI OFFICE',480,534); ctx.globalAlpha=1;
+
+      requestAnimationFrame(render);
     }
 
-    function loop() {
-      updateAgents();
-      drawScene();
-      requestAnimationFrame(loop);
-    }
-    loop();
+    // Randomly toggle agent states for the demo
+    setInterval(()=>{
+      const i=Math.floor(Math.random()*agents.length);
+      agents[i].state = agents[i].state==='working'?'idle':'working';
+    }, 4000);
+
+    render();
+  })();
   </script>
 </body>
 </html>
