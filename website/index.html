@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lumi - AI Research Manager</title>
+  <meta name="description" content="A pixel-art research project manager with AI agent teams. Manage hypotheses, experiments, datasets, and papers through an interactive office where AI agents collaborate on your research." />
+  <meta property="og:title" content="Lumi - AI Research Manager" />
+  <meta property="og:description" content="AI agent teams that collaborate on your research. Scout finds papers, Theorist generates hypotheses, Architect designs experiments, and more." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💡</text></svg>" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap');
+
+    :root {
+      --bg: #0a0a1a;
+      --bg-card: #0f0f23;
+      --bg-elevated: #111827;
+      --border: #374151;
+      --border-light: #4b5563;
+      --text: #e5e7eb;
+      --text-dim: #9ca3af;
+      --text-muted: #6b7280;
+      --purple: #a78bfa;
+      --purple-deep: #7c3aed;
+      --green: #10b981;
+      --yellow: #fbbf24;
+      --blue: #4cc9f0;
+      --pink: #f472b6;
+      --orange: #fb923c;
+      --cyan: #06b6d4;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .pixel-font { font-family: 'Press Start 2P', monospace; }
+
+    /* Pixel grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(167, 139, 250, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(167, 139, 250, 0.03) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Nav ── */
+    nav {
+      padding: 20px 0;
+      border-bottom: 2px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 100;
+    }
+    nav .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+    }
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--purple-deep);
+      border: 2px solid var(--purple);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .logo-text {
+      font-size: 14px;
+      letter-spacing: 4px;
+      color: var(--purple);
+    }
+    .nav-links {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border: 2px solid var(--purple);
+      background: var(--purple-deep);
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background: var(--purple);
+      box-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
+    }
+    .btn-outline {
+      background: transparent;
+      color: var(--purple);
+    }
+    .btn-outline:hover {
+      background: rgba(167, 139, 250, 0.1);
+    }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 80px 0 60px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      letter-spacing: 2px;
+    }
+    .hero h1 {
+      font-size: clamp(32px, 5vw, 56px);
+      line-height: 1.15;
+      margin-bottom: 20px;
+      font-weight: 700;
+    }
+    .hero h1 .accent { color: var(--purple); }
+    .hero h1 .accent-green { color: var(--green); }
+    .hero p {
+      font-size: 17px;
+      color: var(--text-dim);
+      max-width: 600px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+    .hero-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ── Pixel Scene ── */
+    .scene-section {
+      padding: 40px 0 80px;
+    }
+    .scene-window {
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      overflow: hidden;
+    }
+    .scene-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg-elevated);
+      border-bottom: 2px solid var(--border);
+    }
+    .scene-dot {
+      width: 8px;
+      height: 8px;
+    }
+    .scene-titlebar span {
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 2px;
+    }
+    .scene-content {
+      position: relative;
+      height: 340px;
+      overflow: hidden;
+    }
+    .scene-canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Feature Grid ── */
+    .features {
+      padding: 80px 0;
+    }
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 4px;
+      color: var(--purple);
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: clamp(24px, 3vw, 36px);
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .section-desc {
+      font-size: 15px;
+      color: var(--text-dim);
+      max-width: 540px;
+      margin-bottom: 48px;
+      line-height: 1.7;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .feature-card {
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      padding: 28px;
+      transition: all 0.2s;
+    }
+    .feature-card:hover {
+      border-color: var(--border-light);
+      transform: translateY(-2px);
+    }
+    .feature-icon {
+      width: 40px;
+      height: 40px;
+      border: 2px solid;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+    .feature-card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.7;
+    }
+
+    /* ── Agents ── */
+    .agents {
+      padding: 80px 0;
+    }
+    .agent-roster {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+    }
+    .agent-card {
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      padding: 20px 16px;
+      text-align: center;
+      transition: all 0.3s;
+    }
+    .agent-card:hover {
+      transform: translateY(-4px);
+    }
+    .agent-avatar {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 12px;
+      border: 2px solid;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      position: relative;
+    }
+    .agent-avatar::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      right: -4px;
+      width: 10px;
+      height: 10px;
+      background: var(--green);
+      border: 2px solid var(--bg-card);
+    }
+    .agent-card h4 {
+      font-size: 9px;
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+    }
+    .agent-card p {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* ── Oracle ── */
+    .oracle-section {
+      padding: 80px 0;
+    }
+    .oracle-demo {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    .oracle-info h2 {
+      font-size: clamp(24px, 3vw, 36px);
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .oracle-info p {
+      font-size: 15px;
+      color: var(--text-dim);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+    .oracle-capabilities {
+      list-style: none;
+    }
+    .oracle-capabilities li {
+      padding: 8px 0;
+      font-size: 13px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .oracle-capabilities li::before {
+      content: '>';
+      color: var(--purple);
+      font-family: 'Press Start 2P', monospace;
+      font-size: 8px;
+    }
+    .oracle-chat {
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+    }
+    .oracle-chat-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--bg-elevated);
+      border-bottom: 2px solid var(--border);
+    }
+    .oracle-chat-header .dot {
+      width: 8px;
+      height: 8px;
+      background: var(--purple);
+    }
+    .oracle-chat-header span {
+      font-size: 10px;
+      color: var(--purple);
+      letter-spacing: 2px;
+    }
+    .oracle-chat-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .chat-msg {
+      font-size: 11px;
+      line-height: 1.6;
+    }
+    .chat-msg.user {
+      text-align: right;
+    }
+    .chat-msg.user span {
+      display: inline-block;
+      background: var(--bg-elevated);
+      border: 1px solid var(--blue);
+      color: var(--text);
+      padding: 6px 10px;
+    }
+    .chat-msg.oracle {
+      color: var(--text-dim);
+    }
+    .chat-msg.oracle .prefix {
+      color: var(--purple);
+      margin-right: 6px;
+    }
+    .chat-msg .action {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 2px 8px;
+      border: 1px solid var(--green);
+      color: var(--green);
+      font-size: 10px;
+    }
+
+    /* ── How it Works ── */
+    .how-it-works {
+      padding: 80px 0;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 24px;
+      margin-top: 48px;
+    }
+    .step {
+      position: relative;
+      padding: 28px;
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+    }
+    .step-number {
+      font-size: 8px;
+      letter-spacing: 3px;
+      color: var(--purple);
+      margin-bottom: 16px;
+    }
+    .step h3 {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .step p {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.7;
+    }
+    .step code {
+      display: block;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--green);
+      overflow-x: auto;
+    }
+
+    /* ── Tech Stack ── */
+    .tech {
+      padding: 60px 0;
+      border-top: 2px solid var(--border);
+    }
+    .tech-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .tech-badge {
+      padding: 8px 16px;
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      font-size: 12px;
+      color: var(--text-dim);
+      transition: border-color 0.2s;
+    }
+    .tech-badge:hover { border-color: var(--border-light); }
+
+    /* ── Footer ── */
+    footer {
+      padding: 40px 0;
+      border-top: 2px solid var(--border);
+      text-align: center;
+    }
+    footer p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    footer a {
+      color: var(--purple);
+      text-decoration: none;
+    }
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Pixel art animations ── */
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    .blink { animation: blink 1s step-end infinite; }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .float { animation: float 3s ease-in-out infinite; }
+
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 8px rgba(167, 139, 250, 0.2); }
+      50% { box-shadow: 0 0 20px rgba(167, 139, 250, 0.4); }
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .oracle-demo { grid-template-columns: 1fr; }
+      .agent-roster { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+      .nav-links { display: none; }
+      .hero { padding: 48px 0 40px; }
+      .features, .agents, .oracle-section, .how-it-works { padding: 48px 0; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Nav -->
+  <nav>
+    <div class="container">
+      <a href="#" class="logo">
+        <div class="logo-icon">💡</div>
+        <span class="pixel-font logo-text">LUMI</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#agents">Agents</a>
+        <a href="#oracle">Oracle</a>
+        <a href="#start">Get Started</a>
+        <a href="https://github.com/shanyang-me/lumi-research" class="btn btn-outline" target="_blank">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="pixel-font hero-badge">RESEARCH QUEST v1.0</div>
+      <h1>
+        Your AI <span class="accent">research team</span>,<br>
+        ready to <span class="accent-green">collaborate</span>.
+      </h1>
+      <p>
+        Lumi is an open-source research manager where AI agents scout papers,
+        generate hypotheses, design experiments, and write documentation —
+        all from a pixel-art command center.
+      </p>
+      <div class="hero-buttons">
+        <a href="#start" class="btn">Get Started</a>
+        <a href="https://github.com/shanyang-me/lumi-research" class="btn btn-outline" target="_blank">View Source</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pixel Scene Preview -->
+  <section class="scene-section">
+    <div class="container">
+      <div class="scene-window">
+        <div class="scene-titlebar">
+          <div class="scene-dot" style="background: #ef4444"></div>
+          <div class="scene-dot" style="background: #fbbf24"></div>
+          <div class="scene-dot" style="background: #10b981"></div>
+          <span class="pixel-font">&nbsp;LUMI RESEARCH HQ</span>
+        </div>
+        <div class="scene-content">
+          <canvas id="pixel-scene" class="scene-canvas"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="pixel-font section-label">FEATURES</div>
+      <h2 class="section-title">Everything you need to manage research</h2>
+      <p class="section-desc">
+        From literature surveys to paper writing, Lumi provides a complete pipeline
+        with AI agents that do the heavy lifting.
+      </p>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <div class="feature-icon" style="border-color: var(--purple); background: rgba(167,139,250,0.1)">🏢</div>
+          <h3>Pixel Office</h3>
+          <p>Interactive canvas where your AI agents walk around, work at desks, and attend meetings. Watch your team in action.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="border-color: var(--green); background: rgba(16,185,129,0.1)">🤖</div>
+          <h3>7 Specialist Agents</h3>
+          <p>Scout, Theorist, Architect, Coder, Data Smith, Documenter, and Commander — each with deep expertise powered by Claude.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="border-color: var(--yellow); background: rgba(251,191,36,0.1)">💬</div>
+          <h3>Team Meetings</h3>
+          <p>Multi-agent discussions where agents debate topics in rounds. Select participants, set an agenda, watch them collaborate.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="border-color: var(--blue); background: rgba(76,201,240,0.1)">🔮</div>
+          <h3>Oracle Command Center</h3>
+          <p>Natural language control over your entire project. Run agents, start meetings, manage entities, and get strategic advice.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="border-color: var(--orange); background: rgba(251,146,60,0.1)">📋</div>
+          <h3>Pipeline Tracking</h3>
+          <p>7-stage research pipeline from survey through writing. Track tasks, assign agents, monitor progress at every phase.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="border-color: var(--pink); background: rgba(244,114,182,0.1)">📝</div>
+          <h3>Notion Sync</h3>
+          <p>Automatic documentation to Notion. Agent progress, meeting summaries, and project state — all synced with descriptive sub-pages.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Agents -->
+  <section class="agents" id="agents">
+    <div class="container">
+      <div class="pixel-font section-label">TEAM ROSTER</div>
+      <h2 class="section-title">Meet your AI research team</h2>
+      <p class="section-desc">
+        Each agent is a specialist powered by Claude CLI. They analyze your project context
+        and return structured insights. Create custom agents for any role you need.
+      </p>
+      <div class="agent-roster">
+        <div class="agent-card" style="--agent-color: var(--blue)">
+          <div class="agent-avatar" style="border-color: var(--blue); background: rgba(76,201,240,0.1)">🔍</div>
+          <h4 class="pixel-font" style="color: var(--blue)">SCOUT</h4>
+          <p>Literature Research</p>
+        </div>
+        <div class="agent-card" style="--agent-color: var(--yellow)">
+          <div class="agent-avatar" style="border-color: var(--yellow); background: rgba(251,191,36,0.1)">💡</div>
+          <h4 class="pixel-font" style="color: var(--yellow)">THEORIST</h4>
+          <p>Hypothesis Generation</p>
+        </div>
+        <div class="agent-card" style="--agent-color: var(--pink)">
+          <div class="agent-avatar" style="border-color: var(--pink); background: rgba(244,114,182,0.1)">📐</div>
+          <h4 class="pixel-font" style="color: var(--pink)">ARCHITECT</h4>
+          <p>Experiment Design</p>
+        </div>
+        <div class="agent-card" style="--agent-color: var(--orange)">
+          <div class="agent-avatar" style="border-color: var(--orange); background: rgba(251,146,60,0.1)">⌨️</div>
+          <h4 class="pixel-font" style="color: var(--orange)">CODER</h4>
+          <p>Implementation</p>
+        </div>
+        <div class="agent-card" style="--agent-color: var(--cyan)">
+          <div class="agent-avatar" style="border-color: var(--cyan); background: rgba(6,182,212,0.1)">📊</div>
+          <h4 class="pixel-font" style="color: var(--cyan)">DATA SMITH</h4>
+          <p>Dataset Engineering</p>
+        </div>
+        <div class="agent-card" style="--agent-color: var(--green)">
+          <div class="agent-avatar" style="border-color: var(--green); background: rgba(16,185,129,0.1)">📄</div>
+          <h4 class="pixel-font" style="color: var(--green)">DOCUMENTER</h4>
+          <p>Notion Documentation</p>
+        </div>
+        <div class="agent-card" style="--agent-color: var(--purple)">
+          <div class="agent-avatar" style="border-color: var(--purple); background: rgba(167,139,250,0.1)">⚔️</div>
+          <h4 class="pixel-font" style="color: var(--purple)">COMMANDER</h4>
+          <p>Mission Coordination</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Oracle -->
+  <section class="oracle-section" id="oracle">
+    <div class="container">
+      <div class="oracle-demo">
+        <div class="oracle-info">
+          <div class="pixel-font section-label">ORACLE</div>
+          <h2>Command your research with natural language</h2>
+          <p>
+            The Oracle is your AI command center. It has full control over agents, entities,
+            meetings, and documentation. Just describe what you want — it takes action.
+          </p>
+          <ul class="oracle-capabilities">
+            <li>Run any specialist agent on demand</li>
+            <li>Start multi-agent meetings on any topic</li>
+            <li>Create and update hypotheses, experiments, datasets</li>
+            <li>Check pipeline status and get strategic recommendations</li>
+            <li>Sync everything to Notion automatically</li>
+            <li>Analyze project state and suggest next steps</li>
+          </ul>
+        </div>
+        <div class="oracle-chat">
+          <div class="oracle-chat-header">
+            <div class="dot"></div>
+            <span class="pixel-font">ORACLE</span>
+          </div>
+          <div class="oracle-chat-body">
+            <div class="chat-msg user">
+              <span>Run a literature survey on physics-informed neural networks</span>
+            </div>
+            <div class="chat-msg oracle">
+              <span class="prefix">></span> Dispatching Scout agent for literature survey...
+              <div class="action">&#10003; SCOUT RUNNING</div>
+            </div>
+            <div class="chat-msg user">
+              <span>Have theorist and architect discuss our approach</span>
+            </div>
+            <div class="chat-msg oracle">
+              <span class="prefix">></span> Starting meeting with Theorist and Architect on "research approach discussion" (1 round)
+              <div class="action">&#10003; MEETING STARTED</div>
+            </div>
+            <div class="chat-msg user">
+              <span>What should we focus on next?</span>
+            </div>
+            <div class="chat-msg oracle">
+              <span class="prefix">></span> 3 untested hypotheses need experiments. The "attention-gated physics prior" hypothesis looks most promising — I'd suggest running the Architect to design an experiment for it.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it Works -->
+  <section class="how-it-works" id="start">
+    <div class="container">
+      <div class="pixel-font section-label">QUICK START</div>
+      <h2 class="section-title">Up and running in 2 minutes</h2>
+      <p class="section-desc">
+        Lumi runs locally with SQLite. The only external requirement is the Claude CLI for AI agents.
+      </p>
+      <div class="steps">
+        <div class="step">
+          <div class="pixel-font step-number">STEP 01</div>
+          <h3>Install</h3>
+          <p>Clone the repo and install dependencies.</p>
+          <code>git clone https://github.com/shanyang-me/lumi-research<br>cd lumi-research && npm install</code>
+        </div>
+        <div class="step">
+          <div class="pixel-font step-number">STEP 02</div>
+          <h3>Set up database</h3>
+          <p>Run Prisma migrations to create the SQLite database.</p>
+          <code>npx prisma migrate deploy<br>cp .env.example .env</code>
+        </div>
+        <div class="step">
+          <div class="pixel-font step-number">STEP 03</div>
+          <h3>Launch</h3>
+          <p>Build and start the server. Make sure Claude CLI is installed.</p>
+          <code>npm run build<br>npm start -- -p 3001</code>
+        </div>
+        <div class="step">
+          <div class="pixel-font step-number">STEP 04</div>
+          <h3>Research</h3>
+          <p>Open localhost:3001, create a project, and summon your AI team.</p>
+          <code>> open http://localhost:3001</code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tech Stack -->
+  <section class="tech">
+    <div class="container">
+      <div class="pixel-font section-label">BUILT WITH</div>
+      <div class="tech-grid">
+        <div class="tech-badge">Next.js 16</div>
+        <div class="tech-badge">React 19</div>
+        <div class="tech-badge">TypeScript</div>
+        <div class="tech-badge">Prisma + SQLite</div>
+        <div class="tech-badge">Claude CLI</div>
+        <div class="tech-badge">LangGraph</div>
+        <div class="tech-badge">Tailwind CSS</div>
+        <div class="tech-badge">Notion API</div>
+        <div class="tech-badge">MCP Server</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <p style="margin-bottom: 8px">
+        <span class="pixel-font" style="font-size: 10px; color: var(--purple); letter-spacing: 3px">LUMI</span>
+      </p>
+      <p>
+        Open source &middot; MIT License &middot;
+        <a href="https://github.com/shanyang-me/lumi-research">GitHub</a>
+      </p>
+    </div>
+  </footer>
+
+  <!-- Pixel Scene Script -->
+  <script>
+    const canvas = document.getElementById('pixel-scene');
+    const ctx = canvas.getContext('2d');
+    const SCALE = 3;
+
+    function resize() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Colors
+    const FLOOR = '#1a1a2e';
+    const WALL = '#0f0f23';
+    const DESK = '#4a3728';
+    const DESK_TOP = '#5c4033';
+    const MONITOR = '#111827';
+    const SCREEN_ON = '#1e3a5f';
+    const BOARD = '#2d4a3e';
+
+    // Simple pixel agents
+    const agents = [
+      { x: 120, y: 160, color: '#4cc9f0', name: 'S', targetX: 120, targetY: 160, speed: 0.4, timer: 0 },
+      { x: 280, y: 140, color: '#fbbf24', name: 'T', targetX: 280, targetY: 140, speed: 0.35, timer: 60 },
+      { x: 440, y: 180, color: '#f472b6', name: 'A', targetX: 440, targetY: 180, speed: 0.45, timer: 120 },
+      { x: 600, y: 150, color: '#fb923c', name: 'C', targetX: 600, targetY: 150, speed: 0.38, timer: 180 },
+      { x: 200, y: 220, color: '#06b6d4', name: 'D', targetX: 200, targetY: 220, speed: 0.42, timer: 90 },
+      { x: 500, y: 200, color: '#f59e0b', name: 'R', targetX: 500, targetY: 200, speed: 0.36, timer: 150 },
+      { x: 350, y: 240, color: '#a78bfa', name: 'M', targetX: 350, targetY: 240, speed: 0.4, timer: 30 },
+    ];
+
+    function drawPixelRect(x, y, w, h, color) {
+      ctx.fillStyle = color;
+      ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
+    }
+
+    function drawAgent(agent) {
+      const x = Math.floor(agent.x);
+      const y = Math.floor(agent.y);
+      const s = SCALE;
+      // Body
+      ctx.fillStyle = agent.color;
+      ctx.fillRect(x - 3*s, y - 6*s, 6*s, 8*s);
+      // Head
+      ctx.fillStyle = '#e5c9a8';
+      ctx.fillRect(x - 2*s, y - 10*s, 4*s, 4*s);
+      // Eyes
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(x - 1*s, y - 9*s, s, s);
+      ctx.fillRect(x + 1*s, y - 9*s, s, s);
+      // Label
+      ctx.fillStyle = agent.color;
+      ctx.font = '9px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText(agent.name, x, y - 12*s);
+    }
+
+    function drawScene() {
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // Background
+      ctx.fillStyle = WALL;
+      ctx.fillRect(0, 0, w, h * 0.45);
+      ctx.fillStyle = FLOOR;
+      ctx.fillRect(0, h * 0.45, w, h * 0.55);
+
+      // Floor grid
+      ctx.strokeStyle = 'rgba(167,139,250,0.04)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < w; i += 32) {
+        ctx.beginPath(); ctx.moveTo(i, h * 0.45); ctx.lineTo(i, h); ctx.stroke();
+      }
+      for (let i = h * 0.45; i < h; i += 32) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke();
+      }
+
+      // Wall decorations
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(20, 20, 120, 80);
+      ctx.strokeStyle = '#374151';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(20, 20, 120, 80);
+      // Whiteboard text
+      ctx.fillStyle = '#10b981';
+      ctx.font = '8px "Press Start 2P"';
+      ctx.textAlign = 'left';
+      ctx.fillText('RESEARCH', 30, 50);
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText('NOTES', 30, 68);
+      ctx.fillText('TODO: ...', 30, 86);
+
+      // Desks
+      const deskPositions = [
+        { x: 80, y: h * 0.5 },
+        { x: 240, y: h * 0.5 },
+        { x: 400, y: h * 0.5 },
+        { x: 560, y: h * 0.5 },
+      ];
+      for (const desk of deskPositions) {
+        // Desk
+        drawPixelRect(desk.x, desk.y, 80, 12, DESK_TOP);
+        drawPixelRect(desk.x + 4, desk.y + 12, 8, 20, DESK);
+        drawPixelRect(desk.x + 68, desk.y + 12, 8, 20, DESK);
+        // Monitor
+        drawPixelRect(desk.x + 22, desk.y - 28, 36, 28, MONITOR);
+        drawPixelRect(desk.x + 24, desk.y - 26, 32, 22, SCREEN_ON);
+        // Screen glow
+        ctx.fillStyle = `rgba(76,201,240,${0.03 + Math.random() * 0.02})`;
+        ctx.fillRect(desk.x + 24, desk.y - 26, 32, 22);
+      }
+
+      // Meeting table (center-right)
+      const mx = w * 0.75, my = h * 0.7;
+      drawPixelRect(mx - 40, my, 80, 50, '#3d2b1f');
+      drawPixelRect(mx - 36, my + 4, 72, 42, DESK_TOP);
+      // Chairs
+      for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2;
+        const cx = mx + Math.cos(angle) * 52;
+        const cy = my + 25 + Math.sin(angle) * 30;
+        drawPixelRect(cx - 6, cy - 6, 12, 12, '#374151');
+      }
+
+      // Meeting label
+      ctx.fillStyle = '#4b5563';
+      ctx.font = '7px "Press Start 2P"';
+      ctx.textAlign = 'center';
+      ctx.fillText('MEETING', mx, my - 6);
+
+      // Draw agents
+      for (const agent of agents) drawAgent(agent);
+    }
+
+    function updateAgents() {
+      for (const agent of agents) {
+        agent.timer++;
+        if (agent.timer > 120 + Math.random() * 200) {
+          agent.timer = 0;
+          agent.targetX = 60 + Math.random() * (canvas.width - 120);
+          agent.targetY = canvas.height * 0.48 + Math.random() * (canvas.height * 0.45);
+        }
+        const dx = agent.targetX - agent.x;
+        const dy = agent.targetY - agent.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 2) {
+          agent.x += (dx / dist) * agent.speed;
+          agent.y += (dy / dist) * agent.speed;
+        }
+      }
+    }
+
+    function loop() {
+      updateAgents();
+      drawScene();
+      requestAnimationFrame(loop);
+    }
+    loop();
+  </script>
+</body>
+</html>
