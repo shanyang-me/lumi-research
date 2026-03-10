@@ -4,8 +4,6 @@ import { useState, useCallback } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Dashboard } from "@/components/Dashboard";
 import { ProjectView } from "@/components/ProjectView";
-import { AgentChat } from "@/components/AgentChat";
-import { AgentArena } from "@/components/AgentArena";
 import { NewProjectForm } from "@/components/NewProjectForm";
 
 export default function Home() {
@@ -58,8 +56,6 @@ export default function Home() {
             onDelete={() => { setActiveProjectId(null); setActiveView("dashboard"); refresh(); }}
           />
         )}
-        {activeView === "arena" && <AgentArena />}
-        {activeView === "agent" && <AgentChat />}
       </main>
 
       <NewProjectForm

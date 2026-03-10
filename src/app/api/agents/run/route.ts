@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import { prisma } from "@/lib/db";
+import { appendAgentProgress } from "@/lib/notion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -192,6 +193,7 @@ export async function POST(req: Request) {
 
         // Gather project context
         let projectContext = "";
+        let projectName = "";
         if (projectId) {
           const project = await prisma.project.findUnique({
             where: { id: projectId },
@@ -204,6 +206,7 @@ export async function POST(req: Request) {
             },
           });
           if (project) {
+            projectName = project.name;
             projectContext = `
 Project: ${project.name}
 Problem: ${project.problem || "Not yet defined"}
@@ -286,6 +289,22 @@ Experiments: ${project.experiments.map((e) => `${e.name} (${e.status})`).join(",
             output: JSON.stringify(parsed),
           },
         });
+
+        // Append progress to Notion (fire and forget)
+        if (projectName) {
+          const AGENT_PAGE_TITLES: Record<string, string> = {
+            scout: "Literature Survey — Scout",
+            theorist: "Hypothesis Generation — Theorist",
+            architect: "Experiment Design — Architect",
+            coder: "Implementation Plan — Coder",
+            datasmith: "Dataset Engineering — Data Smith",
+            documenter: "Documentation — Documenter",
+            commander: "Mission Coordination — Commander",
+          };
+          const agentLabel = AGENT_PAGE_TITLES[role] || (customAgentName ? `Custom Agent — ${customAgentName}` : role);
+          send("log", { text: `> Syncing to Notion...` });
+          appendAgentProgress(projectName, agentLabel, parsed).catch(() => {});
+        }
 
         send("complete", { role, output: parsed });
       } catch (error) {

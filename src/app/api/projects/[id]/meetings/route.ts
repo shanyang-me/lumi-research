@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { appendAgentProgress } from "@/lib/notion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -204,6 +205,18 @@ Now it's your turn to contribute. Be concise (2-4 paragraphs). Address specific 
         where: { id: meeting.id },
         data: { status: "completed" },
       });
+
+      // Append meeting summary to Notion (fire and forget)
+      if (project.name && conversation.length > 0) {
+        const meetingSummary: Record<string, unknown> = {
+          topic,
+          participants: agentInfo.map((a) => a.name).join(", "),
+          rounds,
+          discussion: conversation.map((m) => `**${m.name}:** ${m.content.slice(0, 300)}`),
+        };
+        appendAgentProgress(project.name, "Team Meetings", meetingSummary).catch(() => {});
+      }
+
       await send("meeting_end", { meetingId: meeting.id });
     } catch (error) {
       await send("error", { text: `Meeting error: ${error}` });

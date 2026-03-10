@@ -10,6 +10,7 @@ import { Blackboard } from "./Blackboard";
 import { MeetingRoom } from "./MeetingRoom";
 import { ConsolePanel } from "./ConsolePanel";
 import type { LogEntry } from "./ConsolePanel";
+import { OraclePanel } from "./OraclePanel";
 import { PixelWorld } from "./PixelWorld";
 import type { AgentStatus } from "./PixelWorld";
 import { AGENT_ROLES, PIPELINE_STAGES } from "@/lib/pipeline";
@@ -74,7 +75,7 @@ export function ProjectView({
 }) {
   const [project, setProject] = useState<ProjectData>(null);
   const [createType, setCreateType] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"arena" | "quest" | "inventory">("arena");
+  const [viewMode, setViewMode] = useState<"quest" | "inventory">("quest");
   const [showBoard, setShowBoard] = useState(false);
   const [showMeeting, setShowMeeting] = useState(false);
 
@@ -84,10 +85,12 @@ export function ProjectView({
   const [agentMessages, setAgentMessages] = useState<Record<string, string>>({});
   const [meetingAgents, setMeetingAgents] = useState<Set<string>>(new Set());
 
-  // Console
+  // Console & Oracle
   const [consoleLogs, setConsoleLogs] = useState<LogEntry[]>([]);
   const [showConsole, setShowConsole] = useState(true);
   const [consoleCollapsed, setConsoleCollapsed] = useState(false);
+  const [showOracle, setShowOracle] = useState(true);
+  const [oracleCollapsed, setOracleCollapsed] = useState(false);
   const logIdRef = useRef(0);
 
   const addLog = useCallback((level: LogEntry["level"], source: string, message: string) => {
@@ -293,6 +296,25 @@ export function ProjectView({
     }
   };
 
+  // Oracle action handler — actions triggered by Oracle's tool calls
+  const handleOracleAction = useCallback((action: { type: string; payload: Record<string, unknown> }) => {
+    if (action.type === "run_agent") {
+      const role = action.payload.role as string;
+      addLog("system", "Oracle", `Dispatching agent: ${role}`);
+      runAgent(role);
+    } else if (action.type === "start_meeting") {
+      addLog("system", "Oracle", `Starting meeting: ${action.payload.topic}`);
+      setShowMeeting(true);
+      // The meeting room will be opened; actual meeting start happens in the MeetingRoom component
+    } else if (action.type === "sync_notion") {
+      addLog("system", "Oracle", "Triggering Notion sync...");
+      runAgent("documenter");
+    }
+    // Refresh project data after any action
+    setTimeout(() => { loadProject(); loadTasks(); }, 1000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addLog, loadProject, loadTasks]);
+
   // Scene click handler
   const handleSceneClick = (item: string) => {
     if (item === "whiteboard") {
@@ -374,19 +396,8 @@ export function ProjectView({
         {/* View mode toggle */}
         <div className="flex border-2 border-[#374151]">
           <button
-            onClick={() => setViewMode("arena")}
-            className={`px-2 py-1 flex items-center gap-1 text-[9px] ${
-              viewMode === "arena"
-                ? "bg-[#1a1a2e] text-[#a78bfa]"
-                : "text-[#6b7280] hover:text-[#9ca3af]"
-            }`}
-          >
-            <Monitor className="w-3 h-3" />
-            <span className="font-pixel text-[6px]">ARENA</span>
-          </button>
-          <button
             onClick={() => setViewMode("quest")}
-            className={`px-2 py-1 flex items-center gap-1 text-[9px] border-l-2 border-[#374151] ${
+            className={`px-2 py-1 flex items-center gap-1 text-[9px] ${
               viewMode === "quest"
                 ? "bg-[#1a1a2e] text-[#a78bfa]"
                 : "text-[#6b7280] hover:text-[#9ca3af]"
@@ -437,215 +448,206 @@ export function ProjectView({
       </div>
 
       {/* Main content */}
-      {viewMode === "arena" ? (
-        <div className="flex-1 overflow-y-auto bg-[#0a0a1a]">
-          {/* Status bar */}
-          <div className="px-4 py-2 bg-[#0f0f23] border-b border-[#1f2937] flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="font-pixel text-[6px] text-[#6b7280]">PROGRESS</span>
-              <div className="w-24 h-2.5 bg-[#1a1a2e] border border-[#374151]">
-                <div
-                  className="h-full bg-[#a78bfa] transition-all duration-500"
-                  style={{ width: `${overallProgress}%` }}
-                />
+      <div className="flex-1 overflow-y-auto bg-[#0a0a1a]">
+        {/* Status bar */}
+        <div className="px-4 py-2 bg-[#0f0f23] border-b border-[#1f2937] flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="font-pixel text-[6px] text-[#6b7280]">PROGRESS</span>
+            <div className="w-24 h-2.5 bg-[#1a1a2e] border border-[#374151]">
+              <div
+                className="h-full bg-[#a78bfa] transition-all duration-500"
+                style={{ width: `${overallProgress}%` }}
+              />
+            </div>
+            <span className="font-pixel text-[7px] text-[#a78bfa]">{overallProgress}%</span>
+            <span className="text-[9px] text-[#6b7280]">{doneTasks}/{totalTasks}</span>
+          </div>
+          <div className="flex-1" />
+          <div className="flex items-center gap-3 text-[9px]">
+            {workingCount > 0 && (
+              <span className="flex items-center gap-1 text-[#10b981]">
+                <Monitor className="w-3 h-3" /> {workingCount} working
+              </span>
+            )}
+            {idleCount > 0 && (
+              <span className="flex items-center gap-1 text-[#6b7280]">
+                <Coffee className="w-3 h-3" /> {idleCount} on break
+              </span>
+            )}
+            <button
+              onClick={() => { setShowConsole(s => !s); if (!showConsole) setConsoleCollapsed(false); }}
+              className={`flex items-center gap-1 px-1.5 py-0.5 border transition-colors ${
+                showConsole ? "border-[#10b981] text-[#10b981]" : "border-[#374151] text-[#4b5563] hover:text-[#10b981] hover:border-[#10b981]"
+              }`}
+              title="Toggle Console"
+            >
+              <Terminal className="w-3 h-3" />
+            </button>
+            <button
+              onClick={() => { setShowOracle(s => !s); if (!showOracle) setOracleCollapsed(false); }}
+              className={`flex items-center gap-1 px-1.5 py-0.5 border transition-colors ${
+                showOracle ? "border-[#a78bfa] text-[#a78bfa]" : "border-[#374151] text-[#4b5563] hover:text-[#a78bfa] hover:border-[#a78bfa]"
+              }`}
+              title="Toggle Oracle"
+            >
+              <Bot className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+
+        {/* Pixel World + Console (left) | Team Roster (right) */}
+        <div className="flex gap-0">
+          {/* Left: Pixel World + Console */}
+          <div className="flex-1 min-w-0">
+            <div className="px-4 pt-4">
+              <PixelWorld agents={agentStatuses} onSceneClick={handleSceneClick} />
+              <div className="text-center mt-1">
+                <span className="text-[8px] text-[#4b5563]">
+                  Click the blackboard for notes | Click the meeting table for team meetings
+                </span>
               </div>
-              <span className="font-pixel text-[7px] text-[#a78bfa]">{overallProgress}%</span>
-              <span className="text-[9px] text-[#6b7280]">{doneTasks}/{totalTasks}</span>
             </div>
-            <div className="flex-1" />
-            <div className="flex items-center gap-3 text-[9px]">
-              {workingCount > 0 && (
-                <span className="flex items-center gap-1 text-[#10b981]">
-                  <Monitor className="w-3 h-3" /> {workingCount} working
-                </span>
-              )}
-              {idleCount > 0 && (
-                <span className="flex items-center gap-1 text-[#6b7280]">
-                  <Coffee className="w-3 h-3" /> {idleCount} on break
-                </span>
-              )}
-              <button
-                onClick={() => { setShowConsole(true); setConsoleCollapsed(false); }}
-                className={`flex items-center gap-1 px-1.5 py-0.5 border transition-colors ${
-                  showConsole ? "border-[#10b981] text-[#10b981]" : "border-[#374151] text-[#4b5563] hover:text-[#10b981] hover:border-[#10b981]"
-                }`}
-                title="Toggle Console"
-              >
-                <Terminal className="w-3 h-3" />
-              </button>
-            </div>
+
+            {/* Console + Oracle split */}
+            {(showConsole || showOracle) && (
+              <div className="px-4 pt-2 flex gap-2" style={{ height: "240px" }}>
+                {showConsole && (
+                  <div className={showOracle ? "flex-1 min-w-0" : "w-full"}>
+                    <ConsolePanel
+                      logs={consoleLogs}
+                      isCollapsed={consoleCollapsed}
+                      onToggleCollapse={() => setConsoleCollapsed(c => !c)}
+                      onClose={() => setShowConsole(false)}
+                    />
+                  </div>
+                )}
+                {showOracle && (
+                  <div className={showConsole ? "flex-1 min-w-0" : "w-full"}>
+                    <OraclePanel
+                      projectId={projectId}
+                      isCollapsed={oracleCollapsed}
+                      onToggleCollapse={() => setOracleCollapsed(c => !c)}
+                      onClose={() => setShowOracle(false)}
+                      onAction={handleOracleAction}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Main content: Pixel World + Console (left) | Team Roster (right) */}
-          <div className="flex gap-0">
-            {/* Left: Pixel World + Console */}
-            <div className="flex-1 min-w-0">
-              <div className="px-4 pt-4">
-                <PixelWorld agents={agentStatuses} onSceneClick={handleSceneClick} />
-                <div className="text-center mt-1">
-                  <span className="text-[8px] text-[#4b5563]">
-                    Click the blackboard for notes | Click the meeting table for team meetings
-                  </span>
-                </div>
+          {/* Right: Team Roster */}
+          <div className="w-56 shrink-0 border-l-2 border-[#374151] bg-[#0f0f23] overflow-y-auto">
+            <div className="p-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Bot className="w-3.5 h-3.5 text-[#a78bfa]" />
+                <span className="font-pixel text-[7px] text-[#a78bfa] tracking-wider">TEAM ROSTER</span>
+                <div className="flex-1" />
+                <button
+                  onClick={() => setShowAddAgent(true)}
+                  className="p-1 border border-dashed border-[#4b5563] text-[#6b7280] hover:border-[#a78bfa] hover:text-[#a78bfa] transition-colors"
+                  title="Hire Agent"
+                >
+                  <Plus className="w-3 h-3" />
+                </button>
               </div>
 
-              {/* Console Panel */}
-              {showConsole && (
-                <div className="px-4 pt-2">
-                  <ConsolePanel
-                    logs={consoleLogs}
-                    isCollapsed={consoleCollapsed}
-                    onToggleCollapse={() => setConsoleCollapsed(c => !c)}
-                    onClose={() => setShowConsole(false)}
-                  />
-                </div>
-              )}
-            </div>
+              <div className="space-y-2">
+                {Object.entries(allAgentRoles).map(([key, role]) => {
+                  const isRunning = runningAgents.has(key);
+                  const inMeeting = meetingAgents.has(key);
+                  const msg = agentMessages[key];
+                  const isCustom = "custom" in role && role.custom;
 
-            {/* Right: Team Roster */}
-            <div className="w-56 shrink-0 border-l-2 border-[#374151] bg-[#0f0f23] overflow-y-auto">
-              <div className="p-3">
-                <div className="flex items-center gap-2 mb-3">
-                  <Bot className="w-3.5 h-3.5 text-[#a78bfa]" />
-                  <span className="font-pixel text-[7px] text-[#a78bfa] tracking-wider">TEAM ROSTER</span>
-                  <div className="flex-1" />
-                  <button
-                    onClick={() => setShowAddAgent(true)}
-                    className="p-1 border border-dashed border-[#4b5563] text-[#6b7280] hover:border-[#a78bfa] hover:text-[#a78bfa] transition-colors"
-                    title="Hire Agent"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
-                </div>
+                  return (
+                    <div
+                      key={key}
+                      className="group border bg-[#111827] p-2 transition-all relative"
+                      style={{
+                        borderColor: isRunning || inMeeting ? role.color : "#374151",
+                        boxShadow: isRunning ? `0 0 8px ${role.color}20` : "none",
+                      }}
+                    >
+                      {/* Delete button for custom agents */}
+                      {isCustom && !isRunning && (
+                        <button
+                          onClick={async () => {
+                            if (!confirm(`Remove ${role.name}?`)) return;
+                            await fetch(`/api/agents/custom/${key}`, { method: "DELETE" });
+                            loadCustomAgents();
+                          }}
+                          className="absolute top-1 right-1 p-0.5 text-[#374151] hover:text-[#ef4444] opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Trash2 className="w-2.5 h-2.5" />
+                        </button>
+                      )}
 
-                <div className="space-y-2">
-                  {Object.entries(allAgentRoles).map(([key, role]) => {
-                    const isRunning = runningAgents.has(key);
-                    const inMeeting = meetingAgents.has(key);
-                    const msg = agentMessages[key];
-                    const isCustom = "custom" in role && role.custom;
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <div
+                          className="w-5 h-5 flex items-center justify-center border"
+                          style={{ borderColor: role.color, background: `${role.color}15` }}
+                        >
+                          <Bot className="w-3 h-3" style={{ color: role.color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1">
+                            <span className="font-pixel text-[6px] tracking-wider" style={{ color: role.color }}>
+                              {role.name.toUpperCase()}
+                            </span>
+                            {isCustom && (
+                              <span className="font-pixel text-[5px] px-0.5 border border-[#374151] text-[#6b7280]">
+                                C
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {isRunning ? (
+                          <Loader2 className="w-3 h-3 animate-spin text-[#10b981]" />
+                        ) : inMeeting ? (
+                          <Users className="w-3 h-3 text-[#fbbf24]" />
+                        ) : (
+                          <Coffee className="w-2.5 h-2.5 text-[#374151]" />
+                        )}
+                      </div>
 
-                    return (
-                      <div
-                        key={key}
-                        className="group border bg-[#111827] p-2 transition-all relative"
+                      {(isRunning || inMeeting) && msg && (
+                        <div className="text-[7px] text-[#6b7280] truncate mb-1 pl-6">{msg}</div>
+                      )}
+
+                      <button
+                        onClick={() => runAgent(key)}
+                        disabled={isRunning || inMeeting}
+                        className="w-full pixel-btn px-1.5 py-1 flex items-center justify-center gap-1 disabled:opacity-30 text-[8px]"
                         style={{
-                          borderColor: isRunning || inMeeting ? role.color : "#374151",
-                          boxShadow: isRunning ? `0 0 8px ${role.color}20` : "none",
+                          background: isRunning ? `${role.color}15` : `${role.color}08`,
+                          borderColor: role.color,
+                          color: role.color,
                         }}
                       >
-                        {/* Delete button for custom agents */}
-                        {isCustom && !isRunning && (
-                          <button
-                            onClick={async () => {
-                              if (!confirm(`Remove ${role.name}?`)) return;
-                              await fetch(`/api/agents/custom/${key}`, { method: "DELETE" });
-                              loadCustomAgents();
-                            }}
-                            className="absolute top-1 right-1 p-0.5 text-[#374151] hover:text-[#ef4444] opacity-0 group-hover:opacity-100 transition-all"
-                          >
-                            <Trash2 className="w-2.5 h-2.5" />
-                          </button>
+                        {isRunning ? (
+                          <>
+                            <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                            <span className="font-pixel text-[5px]">WORKING...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Swords className="w-2.5 h-2.5" />
+                            <span className="font-pixel text-[5px]">SUMMON</span>
+                          </>
                         )}
-
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <div
-                            className="w-5 h-5 flex items-center justify-center border"
-                            style={{ borderColor: role.color, background: `${role.color}15` }}
-                          >
-                            <Bot className="w-3 h-3" style={{ color: role.color }} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1">
-                              <span className="font-pixel text-[6px] tracking-wider" style={{ color: role.color }}>
-                                {role.name.toUpperCase()}
-                              </span>
-                              {isCustom && (
-                                <span className="font-pixel text-[5px] px-0.5 border border-[#374151] text-[#6b7280]">
-                                  C
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {isRunning ? (
-                            <Loader2 className="w-3 h-3 animate-spin text-[#10b981]" />
-                          ) : inMeeting ? (
-                            <Users className="w-3 h-3 text-[#fbbf24]" />
-                          ) : (
-                            <Coffee className="w-2.5 h-2.5 text-[#374151]" />
-                          )}
-                        </div>
-
-                        {(isRunning || inMeeting) && msg && (
-                          <div className="text-[7px] text-[#6b7280] truncate mb-1 pl-6">{msg}</div>
-                        )}
-
-                        <button
-                          onClick={() => runAgent(key)}
-                          disabled={isRunning || inMeeting}
-                          className="w-full pixel-btn px-1.5 py-1 flex items-center justify-center gap-1 disabled:opacity-30 text-[8px]"
-                          style={{
-                            background: isRunning ? `${role.color}15` : `${role.color}08`,
-                            borderColor: role.color,
-                            color: role.color,
-                          }}
-                        >
-                          {isRunning ? (
-                            <>
-                              <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                              <span className="font-pixel text-[5px]">WORKING...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Swords className="w-2.5 h-2.5" />
-                              <span className="font-pixel text-[5px]">SUMMON</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-          </div>
-
-          {/* Stage progress overview */}
-          <div className="px-4 pb-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Map className="w-4 h-4 text-[#a78bfa]" />
-              <span className="font-pixel text-[8px] text-[#a78bfa] tracking-wider">PIPELINE STAGES</span>
-              <div className="flex-1 h-[2px] bg-[#374151]" />
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {PIPELINE_STAGES.map((stage) => {
-                const stageTasks = tasks.filter((t) => t.stage === stage.id);
-                const stageDone = stageTasks.filter((t) => t.status === "done").length;
-                const pct = stageTasks.length > 0 ? Math.round((stageDone / stageTasks.length) * 100) : 0;
-                return (
-                  <button
-                    key={stage.id}
-                    onClick={() => setViewMode("quest")}
-                    className="border border-[#374151] bg-[#111827] p-2 hover:border-[#4b5563] transition-colors text-left"
-                  >
-                    <div className="font-pixel text-[6px] tracking-wider mb-1" style={{ color: stage.color }}>
-                      {stage.label}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="flex-1 h-1 bg-[#1a1a2e] border border-[#374151]">
-                        <div className="h-full transition-all" style={{ width: `${pct}%`, background: stage.color }} />
-                      </div>
-                      <span className="text-[7px] text-[#6b7280]">{pct}%</span>
-                    </div>
-                  </button>
-                );
-              })}
             </div>
           </div>
         </div>
-      ) : viewMode === "quest" ? (
-        <QuestMap project={project} onRefresh={loadProject} />
-      ) : (
+
+        {/* Quest / Inventory content below */}
+        {viewMode === "quest" ? (
+          <QuestMap project={project} onRefresh={loadProject} />
+        ) : (
         <div className="flex-1 overflow-y-auto p-4 max-w-6xl mx-auto w-full">
           {/* Inventory view - entities */}
           <div className="space-y-6">
@@ -817,7 +819,8 @@ export function ProjectView({
             </div>
           </div>
         </div>
-      )}
+        )}
+      </div>
 
       {/* Blackboard overlay */}
       {showBoard && (
