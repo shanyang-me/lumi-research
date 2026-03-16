@@ -2,10 +2,11 @@ import { spawn } from "child_process";
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { appendAgentProgress } from "@/lib/notion";
+import { syncMeetingOutput } from "@/lib/agent-sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 1800;
 
 const BUILTIN_PROMPTS: Record<string, string> = {
   scout: "You are Scout, a literature research specialist. You focus on papers, trends, and research gaps.",
@@ -40,11 +41,11 @@ function runClaude(prompt: string, signal?: AbortSignal): Promise<string> {
       else finish(reject, new Error(stderr || `claude exited with code ${code}`));
     });
     child.on("error", (e) => finish(reject, e));
-    // Timeout: kill after 60s
+    // Timeout: kill after 10min per agent turn
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      finish(reject, new Error("Agent timed out after 60s"));
-    }, 60000);
+      finish(reject, new Error("Agent timed out after 10min"));
+    }, 600000);
     child.on("close", () => clearTimeout(timer));
     // Abort if client disconnects
     if (signal) {
@@ -205,6 +206,13 @@ Now it's your turn to contribute. Be concise (2-4 paragraphs). Address specific 
         where: { id: meeting.id },
         data: { status: "completed" },
       });
+
+      // Sync to inventory + blackboard
+      await send("system", { text: "Syncing findings to inventory & blackboard..." });
+      const syncActions = await syncMeetingOutput(projectId, topic, conversation);
+      for (const action of syncActions) {
+        await send("system", { text: `> ${action}` });
+      }
 
       // Append meeting summary to Notion (fire and forget)
       if (project.name && conversation.length > 0) {

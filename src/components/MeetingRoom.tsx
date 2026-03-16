@@ -44,9 +44,10 @@ interface MeetingRoomProps {
   onMeetingAgentsChange?: (agents: Set<string>) => void;
   onAgentMessage?: (key: string, message: string) => void;
   onLog?: (level: "info" | "agent" | "system" | "error" | "debug", source: string, message: string) => void;
+  onRefresh?: () => void;
 }
 
-export function MeetingRoom({ projectId, customAgents, onClose, onMeetingAgentsChange, onAgentMessage, onLog }: MeetingRoomProps) {
+export function MeetingRoom({ projectId, customAgents, onClose, onMeetingAgentsChange, onAgentMessage, onLog, onRefresh }: MeetingRoomProps) {
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [activeMeeting, setActiveMeeting] = useState<Meeting | null>(null);
   const [liveMessages, setLiveMessages] = useState<MeetingMessage[]>([]);
@@ -170,6 +171,7 @@ export function MeetingRoom({ projectId, customAgents, onClose, onMeetingAgentsC
                 onMeetingAgentsChange?.(new Set());
                 onLog?.("system", "Meeting", "Meeting concluded");
                 loadMeetings();
+                onRefresh?.();
               } else if (eventType === "error") {
                 setLiveMessages((prev) => [
                   ...prev,

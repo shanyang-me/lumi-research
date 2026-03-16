@@ -240,9 +240,11 @@ export async function POST(
     }
 
     if (pageId) {
-      // Delete existing children and re-add
+      // Delete existing content blocks but preserve agent sub-pages
       const existingBlocks = await notion.blocks.children.list({ block_id: pageId, page_size: 100 });
       for (const block of existingBlocks.results) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((block as any).type === "child_page") continue;
         await notion.blocks.delete({ block_id: block.id });
       }
 

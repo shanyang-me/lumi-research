@@ -293,6 +293,7 @@ export function ProjectView({
       setAgentMessages((prev) => ({ ...prev, [role]: "Done" }));
       addLog("system", agentName, "Agent finished");
       loadTasks();
+      loadProject();
     }
   };
 
@@ -495,8 +496,8 @@ export function ProjectView({
           </div>
         </div>
 
-        {/* Pixel World + Console (left) | Team Roster (right) */}
-        <div className="flex gap-0">
+        {/* Pixel World + Console (left) | Team Roster (right) — hidden in inventory mode */}
+        <div className={`flex gap-0${viewMode === "inventory" ? " hidden" : ""}`}>
           {/* Left: Pixel World + Console */}
           <div className="flex-1 min-w-0">
             <div className="px-4 pt-4">
@@ -873,6 +874,7 @@ export function ProjectView({
                 onMeetingAgentsChange={setMeetingAgents}
                 onAgentMessage={(key, msg) => setAgentMessages(prev => ({ ...prev, [key]: msg }))}
                 onLog={addLog}
+                onRefresh={loadProject}
               />
             </div>
           </div>

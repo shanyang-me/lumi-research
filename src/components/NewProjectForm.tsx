@@ -96,7 +96,7 @@ export function NewProjectForm({ open, onClose, onSubmit }: NewProjectFormProps)
   const canProceed = step === 0 ? !!values.name?.trim() : true;
 
   return (
-    <Dialog open={open} onOpenChange={() => { onClose(); setStep(0); }}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) { onClose(); setStep(0); } }}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-[#111827] border-2 border-[#374151] shadow-[4px_4px_0_#0a0a1a]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

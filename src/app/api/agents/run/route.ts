@@ -1,10 +1,11 @@
 import { spawn } from "child_process";
 import { prisma } from "@/lib/db";
 import { appendAgentProgress } from "@/lib/notion";
+import { syncAgentOutput } from "@/lib/agent-sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const AGENT_PROMPTS: Record<string, string> = {
   scout: `You are the SCOUT agent - a literature research specialist. Your job is to:
@@ -39,9 +40,13 @@ Include 3-5 hypotheses ranked by priority.`,
 1. Design concrete experiments to test each hypothesis
 2. Define baselines for comparison
 3. Specify metrics and evaluation criteria
+4. List the models/architectures involved
 
 Respond ONLY with JSON (no markdown, no code fences):
 {
+  "models": [
+    {"name": "...", "architecture": "...", "description": "...", "framework": "..."}
+  ],
   "experiments": [
     {"name": "...", "hypothesis": "...", "description": "...", "baselines": ["..."], "metrics": ["..."], "resources": "...", "estimated_duration": "..."}
   ],
@@ -145,11 +150,11 @@ function runClaude(prompt: string): Promise<string> {
       finish(reject, err);
     });
 
-    // Timeout after 60 seconds
+    // Timeout after 180 seconds
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      finish(reject, new Error("Agent timed out after 60s"));
-    }, 60000);
+      finish(reject, new Error("Agent timed out after 180s"));
+    }, 180000);
   });
 }
 
@@ -289,6 +294,15 @@ Experiments: ${project.experiments.map((e) => `${e.name} (${e.status})`).join(",
             output: JSON.stringify(parsed),
           },
         });
+
+        // Sync to inventory + blackboard
+        if (projectId) {
+          send("log", { text: `> Syncing to inventory & blackboard...` });
+          const syncActions = await syncAgentOutput(projectId, role, parsed);
+          for (const action of syncActions) {
+            send("log", { text: `> ${action}` });
+          }
+        }
 
         // Append progress to Notion (fire and forget)
         if (projectName) {
