@@ -36,6 +36,10 @@ import {
   ChevronDown,
   Users,
   Terminal,
+  Github,
+  BookOpen,
+  ExternalLink,
+  Link,
 } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -446,6 +450,82 @@ export function ProjectView({
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
+      </div>
+
+      {/* Integrations bar */}
+      <div className="px-4 py-1.5 bg-[#0f0f23] border-b border-[#1f2937] flex items-center gap-4 text-[9px]">
+        {/* GitHub */}
+        <div className="flex items-center gap-1.5">
+          <Github className="w-3 h-3 text-[#e5e7eb]" />
+          {project.repoUrl ? (
+            <a
+              href={project.repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#60a5fa] hover:underline flex items-center gap-1"
+            >
+              {project.repoUrl.replace("https://github.com/", "")}
+              <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          ) : (
+            <button
+              onClick={() => {
+                const url = prompt("GitHub repo URL:");
+                if (url) fetch(`/api/projects/${projectId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ repoUrl: url }),
+                }).then(loadProject);
+              }}
+              className="text-[#4b5563] hover:text-[#60a5fa] flex items-center gap-1"
+            >
+              <Link className="w-2.5 h-2.5" />
+              <span>Connect GitHub</span>
+            </button>
+          )}
+        </div>
+
+        <div className="w-px h-3 bg-[#374151]" />
+
+        {/* Overleaf */}
+        <div className="flex items-center gap-1.5">
+          <BookOpen className="w-3 h-3 text-[#e879f9]" />
+          {project.overleafId ? (
+            <a
+              href={`https://www.overleaf.com/project/${project.overleafId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#e879f9] hover:underline flex items-center gap-1"
+            >
+              Overleaf
+              <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          ) : (
+            <button
+              onClick={() => {
+                const id = prompt("Overleaf project ID (from URL):");
+                if (id) fetch(`/api/projects/${projectId}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ overleafId: id }),
+                }).then(loadProject);
+              }}
+              className="text-[#4b5563] hover:text-[#e879f9] flex items-center gap-1"
+            >
+              <Link className="w-2.5 h-2.5" />
+              <span>Connect Overleaf</span>
+            </button>
+          )}
+        </div>
+
+        <div className="w-px h-3 bg-[#374151]" />
+
+        {/* Notion */}
+        <div className="flex items-center gap-1.5">
+          <FileText className="w-3 h-3 text-[#f59e0b]" />
+          <span className="text-[#f59e0b]">Notion</span>
+          <span className="text-[#4b5563]">(auto-synced)</span>
+        </div>
       </div>
 
       {/* Main content */}
