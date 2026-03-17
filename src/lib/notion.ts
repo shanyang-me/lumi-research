@@ -123,6 +123,43 @@ function buildOutputBlocks(output: Record<string, any>, timestamp: string): any[
           ],
         },
       });
+    } else if (typeof value === "object" && value !== null) {
+      // Handle nested objects (e.g., data_preparation, golden_testset, resource_estimates)
+      blocks.push({
+        object: "block",
+        type: "paragraph",
+        paragraph: {
+          rich_text: [{ type: "text", text: { content: `${key}:` }, annotations: { bold: true } }],
+        },
+      });
+      for (const [subKey, subVal] of Object.entries(value)) {
+        if (Array.isArray(subVal)) {
+          for (const item of subVal) {
+            const text = typeof item === "string"
+              ? item
+              : (item as Record<string, string>).name
+                || (item as Record<string, string>).title
+                || JSON.stringify(item);
+            blocks.push({
+              object: "block",
+              type: "bulleted_list_item",
+              bulleted_list_item: { rich_text: [{ type: "text", text: { content: `${subKey}: ${String(text).slice(0, 1900)}` } }] },
+            });
+          }
+        } else if (typeof subVal === "string") {
+          blocks.push({
+            object: "block",
+            type: "bulleted_list_item",
+            bulleted_list_item: { rich_text: [{ type: "text", text: { content: `${subKey}: ${subVal.slice(0, 1900)}` } }] },
+          });
+        } else if (subVal != null) {
+          blocks.push({
+            object: "block",
+            type: "bulleted_list_item",
+            bulleted_list_item: { rich_text: [{ type: "text", text: { content: `${subKey}: ${JSON.stringify(subVal).slice(0, 1900)}` } }] },
+          });
+        }
+      }
     }
   }
 
