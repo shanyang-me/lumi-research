@@ -82,6 +82,7 @@ export function ProjectView({
   const [viewMode, setViewMode] = useState<"quest" | "inventory">("quest");
   const [showBoard, setShowBoard] = useState(false);
   const [showMeeting, setShowMeeting] = useState(false);
+  const [notionUrl, setNotionUrl] = useState<string | null>(null);
 
   // Arena state
   const [tasks, setTasks] = useState<PipelineTask[]>([]);
@@ -119,6 +120,14 @@ export function ProjectView({
   useEffect(() => {
     loadProject();
   }, [loadProject]);
+
+  // Load Notion page URL
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}/notion-url`)
+      .then((r) => r.json())
+      .then((d) => setNotionUrl(d.url || null))
+      .catch(() => {});
+  }, [projectId]);
 
   // Load custom agents
   const loadCustomAgents = useCallback(async () => {
@@ -492,20 +501,24 @@ export function ProjectView({
         {/* Overleaf */}
         <div className="flex items-center gap-1.5">
           <BookOpen className="w-3 h-3 text-[#e879f9]" />
-          {project.overleafId ? (
-            <a
-              href={`https://www.overleaf.com/project/${project.overleafId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[#e879f9] hover:underline flex items-center gap-1"
-            >
-              Overleaf
-              <ExternalLink className="w-2.5 h-2.5" />
-            </a>
-          ) : (
+          {project.overleafId ? (() => {
+            const oid = project.overleafId as string;
+            const href = oid.startsWith("http") ? oid : `https://www.overleaf.com/project/${oid}`;
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#e879f9] hover:underline flex items-center gap-1"
+              >
+                Overleaf
+                <ExternalLink className="w-2.5 h-2.5" />
+              </a>
+            );
+          })() : (
             <button
               onClick={() => {
-                const id = prompt("Overleaf project ID (from URL):");
+                const id = prompt("Overleaf URL or project ID:");
                 if (id) fetch(`/api/projects/${projectId}`, {
                   method: "PATCH",
                   headers: { "Content-Type": "application/json" },
@@ -524,9 +537,20 @@ export function ProjectView({
 
         {/* Notion */}
         <div className="flex items-center gap-1.5">
-          <FileText className="w-3 h-3 text-[#f59e0b]" />
-          <span className="text-[#f59e0b]">Notion</span>
-          <span className="text-[#4b5563]">(auto-synced)</span>
+          <FileText className="w-3.5 h-3.5 text-[#f59e0b]" />
+          {notionUrl ? (
+            <a
+              href={notionUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#f59e0b] hover:underline flex items-center gap-1"
+            >
+              Notion
+              <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+          ) : (
+            <span className="text-[#4b5563]">Notion (run Documenter to create)</span>
+          )}
         </div>
       </div>
 
