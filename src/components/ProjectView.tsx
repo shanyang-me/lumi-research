@@ -453,10 +453,12 @@ export function ProjectView({
       </div>
 
       {/* Integrations bar */}
-      <div className="px-4 py-1.5 bg-[#0f0f23] border-b border-[#1f2937] flex items-center gap-4 text-[9px]">
+      <div className="px-4 py-2 bg-[#111827] border-b-2 border-[#374151] flex items-center gap-4 text-[10px]">
+        <span className="font-pixel text-[6px] text-[#6b7280] tracking-wider mr-1">LINKS</span>
+
         {/* GitHub */}
         <div className="flex items-center gap-1.5">
-          <Github className="w-3 h-3 text-[#e5e7eb]" />
+          <Github className="w-3.5 h-3.5 text-[#e5e7eb]" />
           {project.repoUrl ? (
             <a
               href={project.repoUrl}
@@ -477,7 +479,7 @@ export function ProjectView({
                   body: JSON.stringify({ repoUrl: url }),
                 }).then(loadProject);
               }}
-              className="text-[#4b5563] hover:text-[#60a5fa] flex items-center gap-1"
+              className="text-[#9ca3af] hover:text-[#60a5fa] flex items-center gap-1 border border-dashed border-[#374151] px-1.5 py-0.5 hover:border-[#60a5fa] transition-colors"
             >
               <Link className="w-2.5 h-2.5" />
               <span>Connect GitHub</span>
@@ -510,7 +512,7 @@ export function ProjectView({
                   body: JSON.stringify({ overleafId: id }),
                 }).then(loadProject);
               }}
-              className="text-[#4b5563] hover:text-[#e879f9] flex items-center gap-1"
+              className="text-[#9ca3af] hover:text-[#e879f9] flex items-center gap-1 border border-dashed border-[#374151] px-1.5 py-0.5 hover:border-[#e879f9] transition-colors"
             >
               <Link className="w-2.5 h-2.5" />
               <span>Connect Overleaf</span>
