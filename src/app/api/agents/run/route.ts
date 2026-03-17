@@ -5,7 +5,7 @@ import { syncAgentOutput } from "@/lib/agent-sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 900;
 
 const AGENT_PROMPTS: Record<string, string> = {
   scout: `You are the SCOUT agent - a literature research specialist. Your job is to:
@@ -54,17 +54,26 @@ Respond ONLY with JSON (no markdown, no code fences):
   "evaluation_plan": "..."
 }`,
 
-  coder: `You are the CODER agent - an implementation specialist. Based on the experiment designs, your job is to:
-1. Create a detailed implementation plan
-2. List the key modules/components needed
-3. Identify libraries and frameworks to use
+  coder: `You are the CODER agent - an implementation specialist. You can write code directly to the project's GitHub repository.
 
-Respond ONLY with JSON (no markdown, no code fences):
+If a GitHub repo URL is provided in the context:
+1. Clone the repo (or pull if already cloned) to /tmp/lumi-repos/<repo-name>
+2. Read existing code to understand the structure
+3. Write or update code files based on experiment designs and hypotheses
+4. Commit changes with a descriptive message
+5. Push to the repo
+
+If no repo URL is provided, just output an implementation plan.
+
+After coding, respond with JSON (no markdown, no code fences):
 {
   "implementation_plan": "...",
+  "files_modified": ["path/to/file.py"],
   "modules": [{"name": "...", "description": "...", "dependencies": ["..."]}],
   "tech_stack": {"language": "...", "framework": "...", "libraries": ["..."]},
-  "challenges": ["..."]
+  "challenges": ["..."],
+  "commit_message": "...",
+  "pushed": true
 }`,
 
   datasmith: `You are the DATA SMITH agent - a dataset engineering specialist. Based on the experiment requirements, your job is to:
@@ -109,13 +118,68 @@ Respond ONLY with JSON (no markdown, no code fences):
   "suggestions": ["how to improve docs"],
   "changelog": ["recent changes that should be noted"]
 }`,
+
+  writer: `You are the WRITER agent - an academic paper writing specialist. You have access to Overleaf MCP tools that let you read and write LaTeX files directly in the project's Overleaf repository.
+
+Your workflow:
+1. First call sync_project to pull the latest version from Overleaf
+2. Call list_files to see what .tex files exist
+3. Read existing files to understand the paper structure
+4. Write or update sections based on the project's research findings
+
+Writing guidelines:
+- Use proper LaTeX formatting, citations (\\cite{}), and cross-references (\\ref{}, \\label{})
+- Write in formal academic style, concise and precise
+- Structure content with \\section{}, \\subsection{} as appropriate
+- Use edit_file for surgical edits to existing content, rewrite_file for major rewrites
+- Use update_section to replace a specific section by its heading title
+- Always sync_project before and after making changes
+
+After writing, respond with JSON (no markdown, no code fences):
+{
+  "files_modified": ["main.tex", "sections/intro.tex"],
+  "sections_written": ["Introduction", "Related Work"],
+  "summary": "Brief description of what was written/updated",
+  "word_count_estimate": 1500,
+  "next_steps": ["Write Method section", "Add experiment tables"]
+}`,
 };
 
-function runClaude(prompt: string): Promise<string> {
+// MCP config for agents that need external tool access
+const OVERLEAF_MCP_CONFIG = JSON.stringify({
+  mcpServers: {
+    overleaf: {
+      command: "/Users/shanyang/Documents/overleaf_mcp/.venv/bin/overleaf-mcp",
+      args: [],
+      env: {
+        OVERLEAF_CONFIG_FILE: "/Users/shanyang/Documents/overleaf_mcp/overleaf_config.json",
+        OVERLEAF_TEMP_DIR: "/Users/shanyang/Documents/overleaf_mcp/overleaf_cache",
+      },
+    },
+  },
+});
+
+const AGENTS_WITH_MCP: Record<string, string> = {
+  writer: OVERLEAF_MCP_CONFIG,
+};
+
+// Agents that need filesystem/git access (bypassPermissions for non-interactive)
+const AGENTS_WITH_TOOLS = new Set(["coder", "writer"]);
+
+function runClaude(prompt: string, options?: { mcpConfig?: string; timeoutMs?: number; bypassPermissions?: boolean }): Promise<string> {
   return new Promise((resolve, reject) => {
     const env = { ...process.env, FORCE_COLOR: "0" };
     delete (env as Record<string, string | undefined>).CLAUDECODE;
-    const child = spawn("claude", ["-p", prompt], {
+
+    const args = ["-p", prompt];
+    if (options?.mcpConfig) {
+      args.push("--mcp-config", options.mcpConfig);
+    }
+    if (options?.bypassPermissions || options?.mcpConfig) {
+      args.push("--permission-mode", "bypassPermissions");
+    }
+
+    const child = spawn("claude", args, {
       env,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -150,11 +214,11 @@ function runClaude(prompt: string): Promise<string> {
       finish(reject, err);
     });
 
-    // Timeout after 180 seconds
+    const timeout = options?.timeoutMs || 180000;
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      finish(reject, new Error("Agent timed out after 180s"));
-    }, 180000);
+      finish(reject, new Error(`Agent timed out after ${Math.round(timeout / 1000)}s`));
+    }, timeout);
   });
 }
 
@@ -218,6 +282,8 @@ Problem: ${project.problem || "Not yet defined"}
 Description: ${project.description || "N/A"}
 Success Criteria: ${project.successCriteria || "Not yet defined"}
 Approach: ${project.approach || "Not yet defined"}
+GitHub Repo: ${project.repoUrl || "Not configured"}
+Overleaf Project: ${project.overleafId || "Not configured"}
 Completed tasks: ${project.pipelineTasks.map((t) => t.title).join(", ") || "None"}
 Hypotheses: ${project.hypotheses.map((h) => `${h.title} (${h.status})`).join(", ") || "None"}
 Datasets: ${project.datasets.map((d) => d.name).join(", ") || "None"}
@@ -225,12 +291,31 @@ Experiments: ${project.experiments.map((e) => `${e.name} (${e.status})`).join(",
           }
         }
 
-        send("log", { text: `> Calling Claude (using your subscription)...` });
+        const mcpConfig = AGENTS_WITH_MCP[role];
+        const needsTools = AGENTS_WITH_TOOLS.has(role);
+        if (mcpConfig) {
+          send("log", { text: `> Calling Claude with MCP tools (${role})...` });
+        } else if (needsTools) {
+          send("log", { text: `> Calling Claude with tool access (${role})...` });
+        } else {
+          send("log", { text: `> Calling Claude (using your subscription)...` });
+        }
 
-        const fullPrompt = `${agentPrompt}\n\n---\n\n${projectContext}\n\nCurrent stage: ${stage || "general"}\nAdditional context: ${JSON.stringify(context || {})}\n\nPlease analyze and provide your structured JSON output.`;
+        let tailInstruction = "Please analyze and provide your structured JSON output.";
+        if (role === "writer") {
+          tailInstruction = "Use the Overleaf MCP tools to read/write the paper. Start by syncing the project, then list files, then write or update content.";
+        } else if (role === "coder") {
+          tailInstruction = "Use Bash and file tools to clone the repo, write code, commit and push. If no GitHub repo URL is configured, just output a plan.";
+        }
 
-        // Call claude CLI
-        const rawOutput = await runClaude(fullPrompt);
+        const fullPrompt = `${agentPrompt}\n\n---\n\n${projectContext}\n\nCurrent stage: ${stage || "general"}\nAdditional context: ${JSON.stringify(context || {})}\n\n${tailInstruction}`;
+
+        // Call claude CLI (with MCP/tools access and longer timeout for tool-using agents)
+        const rawOutput = await runClaude(fullPrompt, {
+          mcpConfig,
+          bypassPermissions: needsTools,
+          timeoutMs: needsTools ? 600000 : 180000,
+        });
 
         send("log", { text: `> Response received, processing...` });
         await delay(200);
@@ -310,8 +395,9 @@ Experiments: ${project.experiments.map((e) => `${e.name} (${e.status})`).join(",
             scout: "Literature Survey — Scout",
             theorist: "Hypothesis Generation — Theorist",
             architect: "Experiment Design — Architect",
-            coder: "Implementation Plan — Coder",
+            coder: "Implementation & Code — Coder",
             datasmith: "Dataset Engineering — Data Smith",
+            writer: "Paper Writing — Writer",
             documenter: "Documentation — Documenter",
             commander: "Mission Coordination — Commander",
           };

@@ -35,6 +35,8 @@ export async function POST(req: Request) {
       motivation: body.motivation,
       approach: body.approach,
       timeline: body.timeline,
+      repoUrl: body.repoUrl,
+      overleafId: body.overleafId,
       status: body.status || "active",
     },
   });

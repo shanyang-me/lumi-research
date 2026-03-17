@@ -350,6 +350,8 @@ export function MeetingRoom({ projectId, customAgents, onClose, onMeetingAgentsC
                       <option value={1}>1 round (quick sync)</option>
                       <option value={2}>2 rounds (deeper discussion)</option>
                       <option value={3}>3 rounds (thorough debate)</option>
+                      <option value={5}>5 rounds (extended session)</option>
+                      <option value={10}>10 rounds (marathon)</option>
                     </select>
                     <ChevronDown className="w-3 h-3 text-[#6b7280] absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>

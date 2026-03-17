@@ -70,6 +70,24 @@ const TEMPLATE_FIELDS = [
     hint: "A rough timeline helps track progress.",
     type: "text" as const,
   },
+  {
+    name: "repoUrl",
+    label: "GITHUB REPO",
+    icon: Route,
+    color: "#e5e7eb",
+    placeholder: "https://github.com/user/repo",
+    hint: "Coder agent will write code here.",
+    type: "text" as const,
+  },
+  {
+    name: "overleafId",
+    label: "OVERLEAF PROJECT",
+    icon: Route,
+    color: "#e879f9",
+    placeholder: "Overleaf project ID (from URL)",
+    hint: "Writer agent will write paper here.",
+    type: "text" as const,
+  },
 ];
 
 export function NewProjectForm({ open, onClose, onSubmit }: NewProjectFormProps) {

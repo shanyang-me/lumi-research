@@ -23,6 +23,8 @@ interface AgentOutput {
   modules?: { name: string; description?: string; dependencies?: string[] }[];
   tech_stack?: { language?: string; framework?: string; libraries?: string[] };
   challenges?: string[];
+  commit_message?: string;
+  pushed?: boolean;
   // Datasmith
   datasets?: { name: string; purpose?: string; size?: string; source?: string; format?: string; collection_strategy?: string }[];
   preprocessing?: string[];
@@ -32,6 +34,11 @@ interface AgentOutput {
   bottlenecks?: string[];
   priorities?: { task: string; reason?: string; urgency?: string }[];
   recommendations?: string[];
+  // Writer
+  files_modified?: string[];
+  sections_written?: string[];
+  word_count_estimate?: number;
+  next_steps?: string[];
   // Raw fallback
   raw_output?: string;
 }
@@ -176,6 +183,12 @@ export async function syncAgentOutput(
   if (parsed.bottlenecks?.length) memoLines.push(`Bottlenecks: ${parsed.bottlenecks.join("; ")}`);
   if (parsed.priorities?.length) memoLines.push(`Priorities: ${parsed.priorities.map((p) => `${p.task} (${p.urgency || "?"})`).join("; ")}`);
   if (parsed.recommendations?.length) memoLines.push(`Recommendations: ${parsed.recommendations.join("; ")}`);
+  if (parsed.commit_message) memoLines.push(`Git commit: ${parsed.commit_message}`);
+  if (parsed.pushed) memoLines.push(`Pushed to GitHub`);
+  if (parsed.files_modified?.length) memoLines.push(`Files modified: ${parsed.files_modified.join(", ")}`);
+  if (parsed.sections_written?.length) memoLines.push(`Sections written: ${parsed.sections_written.join(", ")}`);
+  if (parsed.word_count_estimate) memoLines.push(`~${parsed.word_count_estimate} words`);
+  if (parsed.next_steps?.length) memoLines.push(`Next steps: ${parsed.next_steps.join("; ")}`);
   if (actions.length) memoLines.push(`\nInventory updated:\n${actions.join("\n")}`);
   if (parsed.raw_output) memoLines.push(parsed.raw_output.slice(0, 500));
 

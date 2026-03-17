@@ -9,6 +9,7 @@ export const PIPELINE_STAGES = [
   { id: "implement", label: "IMPLEMENT", color: "#fb923c", description: "Code implementation", agent: "coder" },
   { id: "data_prep", label: "DATA PREP", color: "#06b6d4", description: "Build & prepare datasets", agent: "datasmith" },
   { id: "execute", label: "EXECUTE", color: "#ef4444", description: "Run experiments & analyze" },
+  { id: "write", label: "WRITE", color: "#e879f9", description: "Write & publish paper", agent: "writer" },
 ] as const;
 
 export type StageId = (typeof PIPELINE_STAGES)[number]["id"];
@@ -48,6 +49,13 @@ export const AGENT_ROLES = {
     description: "Builds, curates, and validates training datasets",
     color: "#06b6d4",
     stage: "data_prep",
+  },
+  writer: {
+    name: "Writer",
+    title: "Paper Writer",
+    description: "Writes and updates LaTeX paper sections directly on Overleaf",
+    color: "#e879f9",
+    stage: "write",
   },
   documenter: {
     name: "Documenter",
@@ -106,4 +114,9 @@ export const DEFAULT_TASKS: Array<{
   { title: "Run experiments", stage: "execute", type: "manual", order: 0 },
   { title: "Analyze results", stage: "execute", type: "manual", order: 1 },
   { title: "Document findings", stage: "execute", type: "manual", order: 2 },
+  // WRITE
+  { title: "Draft introduction & related work", stage: "write", type: "agent", agentRole: "writer", order: 0 },
+  { title: "Write method section", stage: "write", type: "agent", agentRole: "writer", order: 1 },
+  { title: "Write experiments & results", stage: "write", type: "agent", agentRole: "writer", order: 2 },
+  { title: "Write abstract & conclusion", stage: "write", type: "agent", agentRole: "writer", order: 3 },
 ];

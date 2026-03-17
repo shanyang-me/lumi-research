@@ -22,6 +22,7 @@ import {
   Swords,
   Trash2,
   Crown,
+  PenLine,
 } from "lucide-react";
 
 interface PipelineTask {
@@ -54,6 +55,7 @@ const STAGE_ICONS: Record<string, typeof Search> = {
   implement: Code,
   data_prep: Database,
   execute: Flame,
+  write: PenLine,
 };
 
 const STATUS_STYLE: Record<string, { bg: string; border: string; text: string; glow: string }> = {

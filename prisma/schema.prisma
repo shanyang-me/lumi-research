@@ -17,6 +17,8 @@ model Project {
   motivation      String?      // Why is this important?
   approach        String?      // High-level approach / methodology
   timeline        String?      // Target timeline
+  repoUrl         String?      // GitHub repo URL for code
+  overleafId      String?      // Overleaf project ID for paper
   status          String       @default("active")
   currentStage    String       @default("define")
   createdAt       DateTime     @default(now())
