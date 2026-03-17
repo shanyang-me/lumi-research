@@ -23,6 +23,43 @@ Respond ONLY with JSON (no markdown, no code fences):
 }
 Include 4-6 papers, 3-4 trends, and 2-3 gaps. Use realistic recent papers.`,
 
+  planner: `You are the PLANNER agent - an implementation planning specialist. Your job is to create a concrete, actionable plan covering:
+
+1. **Data Preparation Pipeline**: What data is needed, where it comes from, how to preprocess/clean it, storage format, and estimated sizes. Include train/val/test splits.
+2. **Baseline Experiments**: Define 2-4 baseline methods to compare against. For each baseline, specify the model, training procedure, expected performance range, and why it's a meaningful comparison.
+3. **Golden Test Set**: Design a held-out evaluation set that serves as the ground truth benchmark. Specify selection criteria, size, annotation requirements, and how to prevent data leakage.
+4. **Success Criteria & Metrics**: Define quantitative metrics (e.g., PSNR, FID, accuracy) with target thresholds, and qualitative evaluation criteria.
+5. **Resource Estimates**: GPU hours, storage, timeline for each phase.
+
+Respond ONLY with JSON (no markdown, no code fences):
+{
+  "data_preparation": {
+    "sources": [{"name": "...", "description": "...", "size": "...", "format": "..."}],
+    "preprocessing": ["step1", "step2"],
+    "splits": {"train": "...", "val": "...", "test": "..."},
+    "storage_estimate": "..."
+  },
+  "baselines": [
+    {"name": "...", "model": "...", "description": "...", "training_procedure": "...", "expected_performance": "...", "rationale": "..."}
+  ],
+  "golden_testset": {
+    "description": "...",
+    "size": "...",
+    "selection_criteria": ["..."],
+    "annotation_requirements": "...",
+    "leakage_prevention": "..."
+  },
+  "metrics": [
+    {"name": "...", "description": "...", "target": "...", "priority": "primary|secondary"}
+  ],
+  "resource_estimates": {
+    "gpu_hours": "...",
+    "storage": "...",
+    "timeline": "..."
+  },
+  "summary": "High-level implementation plan summary"
+}`,
+
   theorist: `You are the THEORIST agent - a hypothesis generation specialist. Based on the research problem and any survey findings, your job is to:
 1. Formulate testable hypotheses
 2. Rank them by impact and feasibility
@@ -393,6 +430,7 @@ Experiments: ${project.experiments.map((e) => `${e.name} (${e.status})`).join(",
         if (projectName) {
           const AGENT_PAGE_TITLES: Record<string, string> = {
             scout: "Literature Survey — Scout",
+            planner: "Implementation Plan — Planner",
             theorist: "Hypothesis Generation — Theorist",
             architect: "Experiment Design — Architect",
             coder: "Implementation & Code — Coder",

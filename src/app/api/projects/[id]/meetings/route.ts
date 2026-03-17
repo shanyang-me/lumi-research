@@ -10,6 +10,7 @@ export const maxDuration = 1800;
 
 const BUILTIN_PROMPTS: Record<string, string> = {
   scout: "You are Scout, a literature research specialist. You focus on papers, trends, and research gaps.",
+  planner: "You are Planner, an implementation planning specialist. You focus on data preparation pipelines, baseline experiments, golden test sets, success metrics, and resource estimation.",
   theorist: "You are Theorist, a hypothesis generation specialist. You formulate and evaluate testable hypotheses.",
   architect: "You are Architect, an experiment design specialist. You design experiments, baselines, and ablation studies.",
   coder: "You are Coder, an implementation specialist. You focus on code architecture, libraries, and technical implementation.",
@@ -109,8 +110,8 @@ Experiments: ${project.experiments.map((e) => `${e.name} (${e.status})`).join(",
   for (const key of agentKeys as string[]) {
     if (BUILTIN_PROMPTS[key]) {
       const builtinColors: Record<string, string> = {
-        scout: "#4cc9f0", theorist: "#fbbf24", architect: "#f472b6",
-        coder: "#fb923c", datasmith: "#06b6d4", documenter: "#f59e0b", commander: "#a78bfa",
+        scout: "#4cc9f0", planner: "#34d399", theorist: "#fbbf24", architect: "#f472b6",
+        coder: "#fb923c", datasmith: "#06b6d4", writer: "#e879f9", documenter: "#f59e0b", commander: "#a78bfa",
       };
       agentInfo.push({
         key,

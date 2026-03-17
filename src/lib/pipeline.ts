@@ -3,7 +3,7 @@
 export const PIPELINE_STAGES = [
   { id: "define", label: "DEFINE", color: "#a78bfa", description: "Define the research problem" },
   { id: "survey", label: "SURVEY", color: "#4cc9f0", description: "Literature review & SOTA", agent: "scout" },
-  { id: "plan", label: "PLAN", color: "#34d399", description: "Success criteria & metrics" },
+  { id: "plan", label: "PLAN", color: "#34d399", description: "Implementation plan & baselines", agent: "planner" },
   { id: "hypothesize", label: "HYPOTHESIZE", color: "#fbbf24", description: "Form testable hypotheses", agent: "theorist" },
   { id: "design", label: "DESIGN", color: "#f472b6", description: "Design experiments", agent: "architect" },
   { id: "implement", label: "IMPLEMENT", color: "#fb923c", description: "Code implementation", agent: "coder" },
@@ -21,6 +21,13 @@ export const AGENT_ROLES = {
     description: "Searches and analyzes SOTA papers, identifies trends and gaps",
     color: "#4cc9f0",
     stage: "survey",
+  },
+  planner: {
+    name: "Planner",
+    title: "Implementation Planner",
+    description: "Plans data prep, baseline experiments, and golden test sets",
+    color: "#34d399",
+    stage: "plan",
   },
   theorist: {
     name: "Theorist",
@@ -91,10 +98,10 @@ export const DEFAULT_TASKS: Array<{
   { title: "SOTA analysis", stage: "survey", type: "agent", agentRole: "scout", order: 1 },
   { title: "Identify research gaps", stage: "survey", type: "agent", agentRole: "scout", order: 2 },
   // PLAN
-  { title: "Define success criteria", stage: "plan", type: "manual", order: 0 },
-  { title: "Select benchmark tasks", stage: "plan", type: "manual", order: 1 },
-  { title: "Define evaluation metrics", stage: "plan", type: "manual", order: 2 },
-  { title: "List required datasets", stage: "plan", type: "manual", order: 3 },
+  { title: "Plan data preparation pipeline", stage: "plan", type: "agent", agentRole: "planner", order: 0 },
+  { title: "Design baseline experiments", stage: "plan", type: "agent", agentRole: "planner", order: 1 },
+  { title: "Define golden test set", stage: "plan", type: "agent", agentRole: "planner", order: 2 },
+  { title: "Define success criteria & metrics", stage: "plan", type: "agent", agentRole: "planner", order: 3 },
   // HYPOTHESIZE
   { title: "Generate hypotheses", stage: "hypothesize", type: "agent", agentRole: "theorist", order: 0 },
   { title: "Prioritize hypotheses", stage: "hypothesize", type: "manual", order: 1 },

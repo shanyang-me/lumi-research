@@ -11,6 +11,12 @@ interface AgentOutput {
   trends?: string[];
   gaps?: string[];
   summary?: string;
+  // Planner
+  data_preparation?: { sources?: { name: string; description?: string; size?: string; format?: string }[]; preprocessing?: string[]; splits?: Record<string, string>; storage_estimate?: string };
+  baselines?: { name: string; model?: string; description?: string; training_procedure?: string; expected_performance?: string; rationale?: string }[];
+  golden_testset?: { description?: string; size?: string; selection_criteria?: string[]; annotation_requirements?: string; leakage_prevention?: string };
+  metrics?: { name: string; description?: string; target?: string; priority?: string }[];
+  resource_estimates?: { gpu_hours?: string; storage?: string; timeline?: string };
   // Theorist
   hypotheses?: { title: string; description?: string; rationale?: string; impact?: string; feasibility?: string }[];
   // Architect
@@ -53,6 +59,77 @@ export async function syncAgentOutput(
   parsed: AgentOutput,
 ): Promise<string[]> {
   const actions: string[] = [];
+
+  // --- Inventory: Datasets from planner data_preparation ---
+  if (parsed.data_preparation?.sources?.length) {
+    for (const s of parsed.data_preparation.sources) {
+      const exists = await prisma.dataset.findFirst({
+        where: { projectId, name: s.name },
+      });
+      if (!exists) {
+        await prisma.dataset.create({
+          data: {
+            name: s.name,
+            description: s.description || null,
+            size: s.size || null,
+            format: s.format || null,
+            projectId,
+          },
+        });
+        actions.push(`+dataset: ${s.name}`);
+      }
+    }
+  }
+
+  // --- Inventory: Baseline experiments from planner ---
+  if (parsed.baselines?.length) {
+    for (const b of parsed.baselines) {
+      const exists = await prisma.experiment.findFirst({
+        where: { projectId, name: b.name },
+      });
+      if (!exists) {
+        await prisma.experiment.create({
+          data: {
+            name: b.name,
+            description: [
+              b.description,
+              b.model && `Model: ${b.model}`,
+              b.training_procedure && `Training: ${b.training_procedure}`,
+              b.expected_performance && `Expected: ${b.expected_performance}`,
+              b.rationale && `Rationale: ${b.rationale}`,
+            ].filter(Boolean).join("\n") || null,
+            status: "planned",
+            projectId,
+          },
+        });
+        actions.push(`+experiment (baseline): ${b.name}`);
+      }
+    }
+  }
+
+  // --- Inventory: Golden testset as dataset from planner ---
+  if (parsed.golden_testset?.description) {
+    const gtName = "Golden Test Set";
+    const exists = await prisma.dataset.findFirst({
+      where: { projectId, name: gtName },
+    });
+    if (!exists) {
+      await prisma.dataset.create({
+        data: {
+          name: gtName,
+          description: [
+            parsed.golden_testset.description,
+            parsed.golden_testset.selection_criteria?.length && `Criteria: ${parsed.golden_testset.selection_criteria.join("; ")}`,
+            parsed.golden_testset.annotation_requirements && `Annotations: ${parsed.golden_testset.annotation_requirements}`,
+            parsed.golden_testset.leakage_prevention && `Leakage prevention: ${parsed.golden_testset.leakage_prevention}`,
+          ].filter(Boolean).join("\n") || null,
+          size: parsed.golden_testset.size || null,
+          projectId,
+        },
+      });
+      actions.push(`+dataset: ${gtName}`);
+    }
+  }
 
   // --- Inventory: Papers (from scout) ---
   if (parsed.papers?.length) {
@@ -169,6 +246,15 @@ export async function syncAgentOutput(
   const timestamp = new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
   if (parsed.summary) memoLines.push(parsed.summary);
+  if (parsed.data_preparation?.preprocessing?.length) memoLines.push(`Data pipeline: ${parsed.data_preparation.preprocessing.join(" → ")}`);
+  if (parsed.data_preparation?.splits) memoLines.push(`Splits: ${Object.entries(parsed.data_preparation.splits).map(([k, v]) => `${k}: ${v}`).join(", ")}`);
+  if (parsed.baselines?.length) memoLines.push(`Baselines: ${parsed.baselines.map((b) => b.name).join(", ")}`);
+  if (parsed.golden_testset?.description) memoLines.push(`Golden test set: ${parsed.golden_testset.description.slice(0, 200)}`);
+  if (parsed.metrics?.length) memoLines.push(`Metrics: ${parsed.metrics.map((m) => `${m.name}${m.target ? ` (target: ${m.target})` : ""}`).join(", ")}`);
+  if (parsed.resource_estimates) {
+    const re = parsed.resource_estimates;
+    memoLines.push(`Resources: ${[re.gpu_hours && `GPU: ${re.gpu_hours}`, re.storage && `Storage: ${re.storage}`, re.timeline && `Timeline: ${re.timeline}`].filter(Boolean).join(" | ")}`);
+  }
   if (parsed.trends?.length) memoLines.push(`Trends: ${parsed.trends.join("; ")}`);
   if (parsed.gaps?.length) memoLines.push(`Gaps: ${parsed.gaps.join("; ")}`);
   if (parsed.evaluation_plan) memoLines.push(`Eval plan: ${parsed.evaluation_plan}`);
