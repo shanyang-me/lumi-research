@@ -360,8 +360,37 @@ Experiments: ${project.experiments.map((e) => `${e.name} (${e.status})`).join(",
         // Parse JSON from response
         let parsed;
         try {
-          const jsonMatch = rawOutput.match(/\{[\s\S]*\}/);
-          parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+          // Try to extract JSON: first try the whole output, then look for code fences, then greedy match
+          let jsonStr: string | null = null;
+
+          // 1. Try parsing the whole output directly
+          const trimmed = rawOutput.trim();
+          if (trimmed.startsWith("{")) {
+            jsonStr = trimmed;
+          }
+
+          // 2. Try extracting from code fences ```json ... ```
+          if (!jsonStr) {
+            const fenceMatch = rawOutput.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+            if (fenceMatch?.[1]?.trim().startsWith("{")) {
+              jsonStr = fenceMatch[1].trim();
+            }
+          }
+
+          // 3. Fallback: greedy match from first { to last }
+          if (!jsonStr) {
+            const first = rawOutput.indexOf("{");
+            const last = rawOutput.lastIndexOf("}");
+            if (first !== -1 && last > first) {
+              jsonStr = rawOutput.slice(first, last + 1);
+            }
+          }
+
+          parsed = jsonStr ? JSON.parse(jsonStr) : {};
+          if (Object.keys(parsed).length === 0 && rawOutput.length > 0) {
+            parsed = { raw_output: rawOutput };
+            send("log", { text: `> Warning: No JSON found, storing raw output` });
+          }
         } catch {
           // If JSON parsing fails, wrap raw output
           parsed = { raw_output: rawOutput };
